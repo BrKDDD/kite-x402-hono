@@ -1,0 +1,156 @@
+# Kite x402 Hono
+
+[![CI](https://github.com/BrKDDD/kite-x402-hono/actions/workflows/ci.yml/badge.svg)](https://github.com/BrKDDD/kite-x402-hono/actions/workflows/ci.yml)
+
+A Bun/Hono reverse-proxy template for paid HTTP APIs on Kite. It complements
+the [official Express and Go templates](https://github.com/gokite-ai/kite-x402-services)
+with the same environment variables and `/v1/*` contract, using the official
+`@x402/hono` middleware rather than implementing payment verification itself.
+
+Independent community project. Apache-2.0; upstream attribution is in NOTICE.
+
+## Quick start from source
+
+Requires Bun 1.3 or later and Node.js 22 or later for npm/build tooling.
+CI is pinned to Bun 1.4.2.
+
+```sh
+git clone https://github.com/BrKDDD/kite-x402-hono.git
+cd kite-x402-hono
+npm ci
+cp .env.example .env
+# Replace PAY_TO in .env with your own receiving wallet.
+bun run example
+```
+
+In another terminal in the same directory:
+
+```sh
+bun run start
+curl -i http://localhost:8080/healthz
+curl -i 'http://localhost:8080/v1/echo?message=hello'
+```
+
+`/healthz` returns 200 without contacting a facilitator. `/v1/echo` returns
+402 with an x402 v2 `PAYMENT-REQUIRED` header when the configured facilitator
+is reachable and supports the selected network. A facilitator outage returns
+503 instead; the upstream is never called without verified payment.
+
+The example is a local echo API, not a deployed service or paid-call receipt.
+Bun reads `.env` automatically; the library's `loadConfig()` only reads the
+environment supplied to it.
+
+## Package use
+
+After version 0.1.0 has been published to npm:
+
+```sh
+npm install kite-x402-hono
+bunx kite-x402-hono --help
+# Set PAY_TO and UPSTREAM_URL, or provide a local .env, before starting.
+bunx kite-x402-hono
+```
+
+Library API:
+
+```ts
+import { createApp, loadConfig } from "kite-x402-hono";
+
+const config = loadConfig();
+const app = createApp(config);
+Bun.serve({ port: config.port, fetch: app.fetch });
+```
+
+`createApp(config, { facilitator, fetchUpstream })` also allows dependency
+injection for tests. Never use a simulated facilitator in a production service.
+
+## Configuration
+
+| Variable               | Default                              | Meaning                                                                         |
+| ---------------------- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| `PAY_TO`               | Required                             | Nonzero EVM receiving address                                                   |
+| `UPSTREAM_URL`         | Required                             | Fixed HTTP(S) origin, with no path, credentials or query                        |
+| `KITE_NETWORK`         | `mainnet`                            | `mainnet` or `testnet`                                                          |
+| `PRICE_USD`            | `0.001`                              | Positive decimal, at most 6 fractional digits; optional `$` prefix              |
+| `FACILITATOR_URL`      | `https://facilitator.pieverse.io/v2` | Keep the `/v2` suffix                                                           |
+| `UPSTREAM_AUTH_HEADER` | `Authorization`                      | Upstream credential header name                                                 |
+| `UPSTREAM_AUTH_VALUE`  | Empty                                | Server-side credential; replaces buyer-supplied values                          |
+| `SERVICE_DESCRIPTION`  | Kite paid API description            | Included in the payment challenge                                               |
+| `PORT`                 | `8080`                               | Wrapper port                                                                    |
+| `UPSTREAM_TIMEOUT_MS`  | `10000`                              | Timeout for reading the request body, then separately for upstream headers/body |
+| `MAX_BODY_BYTES`       | `1048576`                            | Request and response byte limit; maximum 16 MiB                                 |
+
+HTTPS is required for upstream/facilitator URLs except localhost development.
+The example `.env` explicitly selects testnet; the compatibility default remains
+mainnet. This wrapper requires no wallet private key.
+
+| Network | CAIP-2        | Token  | Decimals | EIP-712 domain                        |
+| ------- | ------------- | ------ | -------- | ------------------------------------- |
+| Mainnet | `eip155:2366` | USDC.e | 6        | `Bridged USDC (Kite AI)`, version `2` |
+| Testnet | `eip155:2368` | pieUSD | 18       | `pieUSD`, version `1`                 |
+
+Token addresses are pinned in `src/networks.ts` from official Kite template
+revision `893a27509648b660bbba626b0da59619a94f04ab`. Price conversion uses
+integer arithmetic, including for testnet's 18 decimals.
+
+## Payment and proxy contract
+
+1. No payment or invalid payment: return 402; do not call the upstream.
+2. Verified payment: strip `/v1`, preserve the query/method/body, inject the
+   configured upstream credential, and call the fixed upstream origin.
+3. Upstream 2xx: buffer the bounded response, then ask the facilitator to settle.
+4. Successful settlement: return the upstream response and `PAYMENT-RESPONSE`.
+5. Upstream 4xx/5xx, timeout, oversized body or connection failure: do not settle.
+6. Settlement refusal: return the SDK failure response, withholding protected data.
+
+Compatibility notes:
+
+- `/v1/echo` maps to upstream `/echo`. `/v1/v1/forecast` maps to `/v1/forecast`.
+- All HTTP methods under `/v1/*` are paid; the selected upstream must support them.
+- Unlike the reference template's general below-400 rule, this template **refuses
+  upstream redirects** with 502, without settlement, so credentials cannot follow
+  redirects to a different host. Use the final upstream origin directly.
+- Payment headers, client authorization/cookies, proxy headers and hop-by-hop
+  headers are removed. Upstream authentication response headers and cookies are
+  also stripped. The upstream is trusted: do not select one that echoes secrets
+  into response bodies or unrelated headers.
+- Response buffering is deliberate. Streaming/SSE, WebSocket and unbounded
+  downloads are outside v0.1.0.
+- Upstream actions happen before settlement. For non-idempotent POST operations,
+  settlement failure does not undo the upstream action. Use an upstream with
+  idempotency support; the wrapper does not provide exactly-once execution.
+- A facilitator timeout may leave the on-chain settlement outcome unknown. An
+  error response is not proof of no charge. Reconcile before retrying a payment.
+- `/healthz` is process liveness, not proof of upstream/facilitator readiness.
+- The CLI disables Bun's short idle timeout so it does not disconnect a client
+  during settlement. SDK facilitator calls have their own 90-second timeout;
+  deploy behind a reverse proxy with suitable request deadlines and rate limits.
+
+## Verification
+
+```sh
+npm run typecheck
+bun test --coverage
+npm run build
+npm audit --omit=dev --audit-level=high
+npm pack
+```
+
+Tests exercise the real x402 Hono middleware. A deterministic fake facilitator
+supplies verification/settlement results; a separate HTTP test runs the SDK
+client against local `/v2/supported`, `/v2/verify`, `/v2/settle` endpoints and
+proxies real HTTP requests. Fixtures are clearly labeled and are **not valid
+signatures or evidence of on-chain payment**. CI publishes coverage, JUnit and
+the installable package artifact, and tests installing that artifact separately.
+
+For real paid acceptance, deploy a public HTTPS origin, replace PAY_TO, use a
+Kite Passport sandbox session with testnet pieUSD, and retain the real response
+and transaction hash. Follow the current Passport CLI documentation because its
+commands evolve. No mainnet transaction is required for local development.
+
+## Release and contribution
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and
+[docs/week-1.md](docs/week-1.md) for the bounty scope and evidence checklist.
+AI tools assisted development; BrK reviews and owns the contribution. Original
+wrapper/configuration/test work is distinguished from upstream SDK functionality.

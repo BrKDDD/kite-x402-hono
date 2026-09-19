@@ -1,0 +1,12 @@
+Kite x402 Hono
+Copyright 2026 BrK
+
+Kite network constants and the environment/route compatibility contract are
+adapted from gokite-ai/kite-x402-services, Apache-2.0:
+https://github.com/gokite-ai/kite-x402-services
+Reference revision: 893a27509648b660bbba626b0da59619a94f04ab
+
+Payment processing uses the separately licensed x402 SDK:
+https://github.com/x402-foundation/x402
+
+This is an independent community project, not an official Kite release.

@@ -1,0 +1,47 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: |
+          mkdir -p reports
+          bun test --coverage --coverage-reporter=lcov --coverage-reporter=text --reporter=junit --reporter-outfile=reports/junit.xml
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm pack
+      - name: Install and exercise the packed package
+        run: |
+          PACKAGE="$GITHUB_WORKSPACE/kite-x402-hono-0.1.0.tgz"
+          mkdir -p "$RUNNER_TEMP/package-smoke"
+          cd "$RUNNER_TEMP/package-smoke"
+          npm init -y
+          npm install "$PACKAGE"
+          bun node_modules/kite-x402-hono/dist/cli.js --help
+          bun -e 'import { loadConfig, createApp } from "kite-x402-hono"; const app = createApp(loadConfig({PAY_TO: "0x1234567890123456789012345678901234567890", UPSTREAM_URL: "http://127.0.0.1:8081"})); const r = await app.request("/healthz"); if (r.status !== 200) process.exit(1); console.log(await r.text());'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: test-and-package-evidence
+          path: |
+            coverage/
+            reports/
+            *.tgz
