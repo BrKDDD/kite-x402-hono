@@ -1,5 +1,7 @@
 # Kite x402 Hono
 
+中文文档：[README.zh-CN.md](README.zh-CN.md)
+
 [![CI](https://github.com/BrKDDD/kite-x402-hono/actions/workflows/ci.yml/badge.svg)](https://github.com/BrKDDD/kite-x402-hono/actions/workflows/ci.yml)
 
 A Bun/Hono reverse-proxy template for paid HTTP APIs on Kite. It complements
