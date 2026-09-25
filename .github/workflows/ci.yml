@@ -30,7 +30,8 @@ jobs:
       - run: npm pack
       - name: Install and exercise the packed package
         run: |
-          PACKAGE="$GITHUB_WORKSPACE/kite-x402-hono-0.1.0.tgz"
+          PACKAGE_VERSION=$(node -p 'require("./package.json").version')
+          PACKAGE="$GITHUB_WORKSPACE/kite-x402-hono-$PACKAGE_VERSION.tgz"
           mkdir -p "$RUNNER_TEMP/package-smoke"
           cd "$RUNNER_TEMP/package-smoke"
           npm init -y

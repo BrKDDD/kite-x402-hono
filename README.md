@@ -44,7 +44,7 @@ environment supplied to it.
 
 ## Package use
 
-After version 0.1.0 has been published to npm:
+Install from [npm](https://www.npmjs.com/package/kite-x402-hono):
 
 ```sh
 npm install kite-x402-hono
@@ -117,7 +117,7 @@ Compatibility notes:
   also stripped. The upstream is trusted: do not select one that echoes secrets
   into response bodies or unrelated headers.
 - Response buffering is deliberate. Streaming/SSE, WebSocket and unbounded
-  downloads are outside v0.1.0.
+  downloads are outside this template's scope.
 - Upstream actions happen before settlement. For non-idempotent POST operations,
   settlement failure does not undo the upstream action. Use an upstream with
   idempotency support; the wrapper does not provide exactly-once execution.
@@ -130,7 +130,7 @@ Compatibility notes:
 
 ## Verification
 
-### Concurrency admission (source checkout; not in npm 0.1.0)
+### Concurrency admission (added in 0.2.0)
 
 `MAX_CONCURRENT_REQUESTS` defaults to 64 and accepts integers from 1 to 10000.
 The limit is per `createApp()` instance, covering every `/v1/*` request from

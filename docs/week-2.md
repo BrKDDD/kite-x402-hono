@@ -38,6 +38,6 @@ These are simulated payment tests, not real on-chain transactions.
 附带 Retry-After，完成和异常路径均释放名额，健康检查不受影响。新增确定性的并发与故障
 回归测试，验证突发请求、结算期间名额保留、初始化共享和失败恢复；同步更新中英文文档及配置示例。
 
-This source feature is not in the previously published npm 0.1.0. No new npm release
-or on-chain payment is claimed. This is a per-process resource bound, not payment
+This feature is included in release 0.2.0; npm 0.1.0 does not contain it.
+No on-chain payment is claimed. This is a per-process resource bound, not payment
 deduplication, exactly-once execution or a distributed rate limiter.

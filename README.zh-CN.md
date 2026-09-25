@@ -47,7 +47,7 @@ bunx kite-x402-hono --help
 bunx kite-x402-hono
 ```
 
-当前公开版本：[kite-x402-hono@0.1.0](https://www.npmjs.com/package/kite-x402-hono)。
+公开版本及安装信息：[kite-x402-hono](https://www.npmjs.com/package/kite-x402-hono)。
 
 也可以作为库使用：
 
@@ -104,14 +104,14 @@ Bun.serve({ port: config.port, fetch: app.fetch });
 - `/v1/*` 下的所有 HTTP 方法都需要付款；上游必须支持对应方法。
 - 本模板拒绝上游重定向并返回 502，不结算，避免凭据被带到其他主机。请直接配置最终上游 origin。
 - 会删除支付头、客户端认证头、Cookie、代理头和 hop-by-hop 头；上游返回的认证头和 Cookie 也会被删除。
-- 响应会被缓存，因此 v0.1.0 不支持流式响应、SSE、WebSocket 和无限大小下载。
+- 响应会被缓存，因此本模板不支持流式响应、SSE、WebSocket 和无限大小下载。
 - 上游动作发生在结算之前。非幂等 POST 在结算失败时不会回滚；需要 exactly-once 行为时，上游必须自行提供幂等机制。
 - facilitator 超时可能无法确定链上结算结果；错误响应不等于确定没有扣款，重试前应先核对。
 - `/healthz` 只表示进程存活，不代表上游或 facilitator 已就绪。
 
 ## 验证
 
-### 并发准入限制（源码版，npm 0.1.0 尚不包含）
+### 并发准入限制（0.2.0 新增）
 
 `MAX_CONCURRENT_REQUESTS` 默认 64，接受 1 至 10000 的整数。每个 `createApp()` 实例
 独立限制 `/v1/*` 的在途请求数，从 facilitator 初始化、付款验证、上游处理一直覆盖到结算完成。
