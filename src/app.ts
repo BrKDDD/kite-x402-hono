@@ -23,6 +23,28 @@ export function createApp(
   options: AppOptions = {},
 ): Hono {
   const app = new Hono();
+  const capacity = config.maxConcurrentRequests ?? 64;
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 10000) {
+    throw new Error(
+      "maxConcurrentRequests must be an integer between 1 and 10000",
+    );
+  }
+  let active = 0;
+  // Cover initialization, verification, upstream and settlement, not just proxy I/O.
+  // Never queue payment-bearing requests or retain their signatures.
+  app.use("/v1/*", async (c, next) => {
+    if (active >= capacity) {
+      c.header("Retry-After", "1");
+      c.header("Cache-Control", "no-store");
+      return c.json({ error: "service_busy" }, 503);
+    }
+    active++;
+    try {
+      await next();
+    } finally {
+      active--;
+    }
+  });
   const facilitator =
     options.facilitator ??
     new HTTPFacilitatorClient({ url: config.facilitatorUrl });

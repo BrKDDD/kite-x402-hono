@@ -12,6 +12,7 @@ export interface Config {
   port: number;
   timeoutMs: number;
   maxBodyBytes: number;
+  maxConcurrentRequests?: number;
 }
 
 function integer(value: string, key: string, max: number): number {
@@ -119,6 +120,11 @@ export function loadConfig(
       get("MAX_BODY_BYTES", "1048576"),
       "MAX_BODY_BYTES",
       16777216,
+    ),
+    maxConcurrentRequests: integer(
+      get("MAX_CONCURRENT_REQUESTS", "64"),
+      "MAX_CONCURRENT_REQUESTS",
+      10000,
     ),
   };
 }

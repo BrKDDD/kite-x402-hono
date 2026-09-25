@@ -130,6 +130,24 @@ Compatibility notes:
 
 ## Verification
 
+### Concurrency admission (source checkout; not in npm 0.1.0)
+
+`MAX_CONCURRENT_REQUESTS` defaults to 64 and accepts integers from 1 to 10000.
+The limit is per `createApp()` instance, covering every `/v1/*` request from
+facilitator initialization through verification, upstream handling and settlement.
+Overflow returns `503 {"error":"service_busy"}`, `Retry-After: 1` and
+`Cache-Control: no-store` before any payment verification or upstream call.
+Requests are not queued. Slots are released on completion or failure; `/healthz`
+and unrelated routes do not consume slots. Unpaid challenges also count.
+
+This is a concurrency bound, not a distributed rate limiter, payment replay
+defense or idempotency mechanism. Replicas have separate limits. Tune the value
+for upstream capacity and response sizes; use edge rate limits for hostile traffic.
+Do not treat every 503 as safe to retry: only this wrapper's `service_busy`
+response denotes pre-payment rejection. Settlement errors still need reconciliation.
+
+### Commands
+
 ```sh
 npm run typecheck
 bun test --coverage

@@ -111,6 +111,20 @@ Bun.serve({ port: config.port, fetch: app.fetch });
 
 ## 验证
 
+### 并发准入限制（源码版，npm 0.1.0 尚不包含）
+
+`MAX_CONCURRENT_REQUESTS` 默认 64，接受 1 至 10000 的整数。每个 `createApp()` 实例
+独立限制 `/v1/*` 的在途请求数，从 facilitator 初始化、付款验证、上游处理一直覆盖到结算完成。
+达到上限后立即返回 `503 {"error":"service_busy"}`，附带 `Retry-After: 1` 和
+`Cache-Control: no-store`，不验证付款、不调用上游，也不排队保存请求。
+完成或失败都会释放名额；健康检查和无关路由不占用名额，未付款请求会占用名额。
+
+这不是跨实例限流、付款防重放或幂等机制。应根据上游能力和响应大小调整上限，多个副本分别计数，
+恶意流量仍应通过入口限流控制。不能把所有 503 都当成可安全重试：只有本代理的
+`service_busy` 表示付款前拒绝；结算错误仍需先核对结果。
+
+### 检查命令
+
 ```sh
 npm run typecheck
 bun test --coverage
