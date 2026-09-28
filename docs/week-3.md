@@ -25,8 +25,8 @@ Config tests cover bounds and backwards compatibility.
 
 Settlement timeout is not a no-charge guarantee. The upstream has run and a
 facilitator may settle after the connection is aborted. Tests deliberately probe
-recovery with unpaid requests rather than replaying a payment. No chain transaction
-or published npm upgrade is claimed by these source tests.
+recovery with unpaid requests rather than replaying a payment. These source tests do not perform real chain transactions. The functionality is
+included in version 0.3.0; npm publication is verified separately from source tests.
 
 ## 可提交说明
 

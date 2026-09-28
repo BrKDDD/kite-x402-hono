@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Add `FACILITATOR_TIMEOUT_MS` (default 90000, range 1–300000) and validate
+  environment and programmatic configuration while preserving older Config objects.
+- Apply the official SDK HTTP abort mechanism to facilitator capability discovery,
+  payment verification and settlement, including response headers and bodies.
+- Add seven real HTTP timeout tests covering failure responses, concurrency-slot
+  recovery, health availability and absence of automatic payment retries.
+- Update English/Chinese documentation, CLI help and the environment example.
+
+The timeout applies per HTTP attempt; SDK initialization backoff may extend the
+whole request. Custom facilitator clients manage their own deadlines. Settlement
+timeout leaves the payment outcome unknown and does not guarantee no charge.
+
 ## 0.2.0
 
 - Bound the complete payment lifecycle with `MAX_CONCURRENT_REQUESTS` (default

@@ -123,7 +123,7 @@ Bun.serve({ port: config.port, fetch: app.fetch });
 恶意流量仍应通过入口限流控制。不能把所有 503 都当成可安全重试：只有本代理的
 `service_busy` 表示付款前拒绝；结算错误仍需先核对结果。
 
-### Facilitator 超时（源码版，npm 0.2.0 尚不包含）
+### Facilitator 超时（0.3.0 新增）
 
 `FACILITATOR_TIMEOUT_MS` 默认 90000 毫秒，允许 1 至 300000 的整数。
 使用官方 SDK 的 HTTP 取消机制，对 `/supported`、`/verify`、`/settle` 的每次请求

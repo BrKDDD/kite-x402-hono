@@ -146,7 +146,7 @@ for upstream capacity and response sizes; use edge rate limits for hostile traff
 Do not treat every 503 as safe to retry: only this wrapper's `service_busy`
 response denotes pre-payment rejection. Settlement errors still need reconciliation.
 
-### Facilitator deadlines (source checkout; not in npm 0.2.0)
+### Facilitator deadlines (added in 0.3.0)
 
 `FACILITATOR_TIMEOUT_MS` accepts integers from 1 to 300000, default 90000.
 It configures the official SDK HTTP client's timeout for each `/supported`,
