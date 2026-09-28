@@ -123,6 +123,19 @@ Bun.serve({ port: config.port, fetch: app.fetch });
 恶意流量仍应通过入口限流控制。不能把所有 503 都当成可安全重试：只有本代理的
 `service_busy` 表示付款前拒绝；结算错误仍需先核对结果。
 
+### Facilitator 超时（源码版，npm 0.2.0 尚不包含）
+
+`FACILITATOR_TIMEOUT_MS` 默认 90000 毫秒，允许 1 至 300000 的整数。
+使用官方 SDK 的 HTTP 取消机制，对 `/supported`、`/verify`、`/settle` 的每次请求
+限制等待时间，覆盖响应头和响应体。它独立于上游 API 的 `UPSTREAM_TIMEOUT_MS`，
+不是整个付费请求的总时限；SDK 对 `/supported` 的 429 响应可能退避重试。
+自行注入的 facilitator 需要自行实现超时及取消策略。
+
+初始化超时返回 503 `facilitator_unavailable`；付款验证及结算超时返回 SDK 的 502。
+验证超时不会调用上游或结算。结算超时不返回受保护内容，但上游已经执行，链上可能已经扣款。
+不自动重试验证和结算；结果不明时先核对再重试。请求结束后释放并发名额，健康检查保持可用。
+超时设得过短会增加结算结果不明的情况，应按实际部署选择。
+
 ### 检查命令
 
 ```sh

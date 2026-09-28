@@ -125,7 +125,7 @@ Compatibility notes:
   error response is not proof of no charge. Reconcile before retrying a payment.
 - `/healthz` is process liveness, not proof of upstream/facilitator readiness.
 - The CLI disables Bun's short idle timeout so it does not disconnect a client
-  during settlement. SDK facilitator calls have their own 90-second timeout;
+  during settlement. SDK facilitator calls default to a configurable 90-second timeout;
   deploy behind a reverse proxy with suitable request deadlines and rate limits.
 
 ## Verification
@@ -145,6 +145,24 @@ defense or idempotency mechanism. Replicas have separate limits. Tune the value
 for upstream capacity and response sizes; use edge rate limits for hostile traffic.
 Do not treat every 503 as safe to retry: only this wrapper's `service_busy`
 response denotes pre-payment rejection. Settlement errors still need reconciliation.
+
+### Facilitator deadlines (source checkout; not in npm 0.2.0)
+
+`FACILITATOR_TIMEOUT_MS` accepts integers from 1 to 300000, default 90000.
+It configures the official SDK HTTP client's timeout for each `/supported`,
+`/verify` and `/settle` attempt, including response-body consumption. This is
+separate from `UPSTREAM_TIMEOUT_MS`; it is not a total request deadline. The SDK
+may retry `/supported` on HTTP 429 with backoff, so initialization can take longer.
+Custom injected facilitators own their own cancellation and timeout policy.
+
+An initialization timeout returns 503 `facilitator_unavailable`. Verification
+and settlement timeouts return SDK 502 errors. Verification timeout does not call
+the upstream or settle. Settlement timeout withholds the protected response, but
+the upstream already ran and the facilitator may have completed the charge.
+There is no automatic retry of verification or settlement. Reconcile an unknown
+settlement before retrying. Slots are released when requests finish, and health
+checks remain available. Lowering the timeout increases indeterminate outcomes
+for slow settlements; choose a deadline suitable for your deployment.
 
 ### Commands
 

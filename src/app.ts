@@ -23,6 +23,16 @@ export function createApp(
   options: AppOptions = {},
 ): Hono {
   const app = new Hono();
+  const facilitatorTimeoutMs = config.facilitatorTimeoutMs ?? 90000;
+  if (
+    !Number.isInteger(facilitatorTimeoutMs) ||
+    facilitatorTimeoutMs < 1 ||
+    facilitatorTimeoutMs > 300000
+  ) {
+    throw new Error(
+      "facilitatorTimeoutMs must be an integer between 1 and 300000",
+    );
+  }
   const capacity = config.maxConcurrentRequests ?? 64;
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 10000) {
     throw new Error(
@@ -47,7 +57,10 @@ export function createApp(
   });
   const facilitator =
     options.facilitator ??
-    new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+    new HTTPFacilitatorClient({
+      url: config.facilitatorUrl,
+      timeoutMs: facilitatorTimeoutMs,
+    });
   const server = new x402ResourceServer(facilitator).register(
     config.chain.network,
     new ExactEvmScheme(),

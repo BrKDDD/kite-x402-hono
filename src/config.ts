@@ -13,6 +13,7 @@ export interface Config {
   timeoutMs: number;
   maxBodyBytes: number;
   maxConcurrentRequests?: number;
+  facilitatorTimeoutMs?: number;
 }
 
 function integer(value: string, key: string, max: number): number {
@@ -125,6 +126,11 @@ export function loadConfig(
       get("MAX_CONCURRENT_REQUESTS", "64"),
       "MAX_CONCURRENT_REQUESTS",
       10000,
+    ),
+    facilitatorTimeoutMs: integer(
+      get("FACILITATOR_TIMEOUT_MS", "90000"),
+      "FACILITATOR_TIMEOUT_MS",
+      300000,
     ),
   };
 }
