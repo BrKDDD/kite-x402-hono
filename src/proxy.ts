@@ -55,7 +55,12 @@ export async function readLimited(
 ): Promise<Uint8Array<ArrayBuffer>> {
   if (!stream) return new Uint8Array();
   const reader = stream.getReader();
+  let completed = false;
+  let cancelled = false;
   const cancel = () => {
+    if (cancelled) return;
+    cancelled = true;
+    // Cleanup belongs to the stream producer and must not block a failure response.
     void reader.cancel().catch(() => {});
   };
   signal?.addEventListener("abort", cancel, { once: true });
@@ -66,16 +71,19 @@ export async function readLimited(
       signal?.throwIfAborted();
       const { done, value } = await reader.read();
       signal?.throwIfAborted();
-      if (done) break;
+      if (done) {
+        completed = true;
+        break;
+      }
       size += value.byteLength;
       if (size > limit) {
-        await reader.cancel();
         throw new BodyTooLarge();
       }
       chunks.push(value);
     }
   } finally {
     signal?.removeEventListener("abort", cancel);
+    if (!completed) cancel();
     reader.releaseLock();
   }
   const output = new Uint8Array(size);
@@ -141,7 +149,7 @@ export async function proxy(
     );
     // No redirect following: an upstream cannot forward the injected credential to another host.
     if (upstream.status >= 300 && upstream.status < 400) {
-      await upstream.body?.cancel();
+      void upstream.body?.cancel().catch(() => {});
       return Response.json(
         { error: "upstream_redirect_refused" },
         { status: 502 },

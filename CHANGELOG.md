@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Make rejected-body and redirect stream cleanup non-blocking so stalled producer
+  cancellation cannot retain a request slot. Preserve original errors when cleanup fails.
+- Cancel unfinished reads, including already-aborted requests, and release reader locks.
+- Add nine regression tests for stalled/rejected cleanup, capacity recovery, aborts
+  and byte-preserving successful reads.
+
 ## 0.3.0
 
 - Add `FACILITATOR_TIMEOUT_MS` (default 90000, range 1–300000) and validate

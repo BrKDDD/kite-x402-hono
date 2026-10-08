@@ -164,6 +164,16 @@ settlement before retrying. Slots are released when requests finish, and health
 checks remain available. Lowering the timeout increases indeterminate outcomes
 for slow settlements; choose a deadline suitable for your deployment.
 
+### Stream cleanup (source checkout; not in npm 0.3.0)
+
+Rejected oversized bodies, refused redirects and aborted reads request stream
+cancellation without waiting for producer cleanup. A stalled or rejected cleanup
+promise cannot hold a concurrency slot or replace the original HTTP error.
+Readers release their locks on success and failure; successful bodies retain their
+original bytes. Cleanup is best-effort: an injected stream producer still owns its
+underlying resources. This does not cancel or undo payment settlement, and does
+not add payment retries.
+
 ### Commands
 
 ```sh
