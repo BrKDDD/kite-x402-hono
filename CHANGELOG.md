@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1
 
 - Make rejected-body and redirect stream cleanup non-blocking so stalled producer
   cancellation cannot retain a request slot. Preserve original errors when cleanup fails.

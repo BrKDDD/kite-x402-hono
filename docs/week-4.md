@@ -24,7 +24,7 @@ pending read, and successful multi-chunk reads at the exact size limit.
 
 Against the previous source, seven of these nine tests fail. With the fix all nine
 pass. Test payment verification is simulated; no real on-chain payment is claimed.
-The feature is source-only until a newer npm version is published.
+The fix is included in version 0.3.1; registry publication is verified separately.
 
 Cancellation is best-effort, not proof the producer released external resources.
 An injected stream must manage its own resources. This change neither aborts an

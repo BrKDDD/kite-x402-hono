@@ -164,7 +164,7 @@ settlement before retrying. Slots are released when requests finish, and health
 checks remain available. Lowering the timeout increases indeterminate outcomes
 for slow settlements; choose a deadline suitable for your deployment.
 
-### Stream cleanup (source checkout; not in npm 0.3.0)
+### Stream cleanup (fixed in 0.3.1)
 
 Rejected oversized bodies, refused redirects and aborted reads request stream
 cancellation without waiting for producer cleanup. A stalled or rejected cleanup
