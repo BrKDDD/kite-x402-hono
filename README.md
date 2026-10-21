@@ -205,6 +205,11 @@ response denotes pre-payment rejection. Settlement errors still need reconciliat
 - Exceeding clients receive `429 {"error":"rate_limit_exceeded"}` with `Retry-After: <seconds>` and `Cache-Control: no-store` before payment verification or upstream proxying.
 - `/healthz` health probes and browser `OPTIONS` preflights are always exempt from rate limiting.
 
+The built-in limiter tracks at most 10,000 client buckets per app instance.
+Requests trigger an idle-bucket sweep at most once per second. Only buckets
+whose tokens have fully refilled are removed, preserving limits for active or
+partially refilled clients while making room for new clients over time.
+
 ### Facilitator deadlines (added in 0.3.0)
 
 `FACILITATOR_TIMEOUT_MS` accepts integers from 1 to 300000, default 90000.
