@@ -24,3 +24,11 @@ export {
   type RateLimiterOptions,
 } from "./rate-limiter.js";
 export { evaluateIpFilter, parseIpList, matchesIpRule } from "./firewall.js";
+export {
+  executeWithRetry,
+  computeBackoffDelay,
+  isTransientError,
+  TRANSIENT_STATUS_CODES,
+  type RetryOptions,
+  type RetryStats,
+} from "./retry-backoff.js";
