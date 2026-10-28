@@ -28,6 +28,7 @@ export interface Config {
   firewallAllowlist?: string[] | undefined;
   firewallBlocklist?: string[] | undefined;
   trustProxyHeaders?: boolean | undefined;
+  trustedProxyCidrs?: string[] | undefined;
   maintenanceMode?: boolean;
   logFormat?: "json" | "dev" | undefined;
   logEnabled?: boolean | undefined;
@@ -177,7 +178,8 @@ export function loadConfig(
       : undefined,
     firewallAllowlist: parseIpList(get("FIREWALL_ALLOWLIST")),
     firewallBlocklist: parseIpList(get("FIREWALL_BLOCKLIST")),
-    trustProxyHeaders: get("TRUST_PROXY_HEADERS", "true") === "true",
+    trustProxyHeaders: get("TRUST_PROXY_HEADERS", "false") === "true",
+    trustedProxyCidrs: parseIpList(get("TRUSTED_PROXY_CIDRS")),
     logFormat: get("LOG_FORMAT") === "dev" ? "dev" : "json",
     logEnabled: get("LOG_ENABLED") !== "false",
   };

@@ -19,11 +19,12 @@ import {
   createRateLimiterMiddleware,
   type RateLimiterOptions,
 } from "./rate-limiter.js";
-import { evaluateIpFilter, extractClientIp } from "./firewall.js";
+import { evaluateIpFilter } from "./firewall.js";
 import { IdempotencyCache } from "./idempotency.js";
 import { PaymentNonceReplayGuard } from "./nonce-guard.js";
 import { createPaymentProtection } from "./payment-protection.js";
 import { createAccessLogger } from "./logger.js";
+import { clientIpResolver } from "./client-ip.js";
 
 export interface AppOptions {
   facilitator?: FacilitatorClient;
@@ -40,6 +41,7 @@ export function createApp(
   options: AppOptions = {},
 ): Hono {
   const app = new Hono();
+  const getClientIp = options.clientIp ?? clientIpResolver(config);
 
   // Attach standard security headers to protect against MIME-sniffing,
   // clickjacking, and XSS across all routes.
@@ -59,6 +61,7 @@ export function createApp(
           skipHealthz: true,
         },
         options.logSink,
+        getClientIp,
       ),
     );
   }
@@ -141,12 +144,6 @@ export function createApp(
       return corsMiddleware(c, async () => {});
     });
   }
-  const getClientIp =
-    options.clientIp ??
-    ((c: Context) =>
-      config.trustProxyHeaders !== false
-        ? extractClientIp(c.req.raw.headers)
-        : (c.env?.clientIp ?? null));
   if (config.firewallAllowlist?.length || config.firewallBlocklist?.length) {
     app.use("/v1/*", async (c, next) => {
       const ip = getClientIp(c);

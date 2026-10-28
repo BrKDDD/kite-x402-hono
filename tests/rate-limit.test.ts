@@ -16,6 +16,7 @@ const baseConfig: Config = {
   port: 8080,
   timeoutMs: 10000,
   maxBodyBytes: 1048576,
+  trustProxyHeaders: true,
   rateLimitRps: 2,
   rateLimitBurst: 3,
 };

@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 
 export type LogFormat = "json" | "dev";
 
@@ -69,6 +69,8 @@ export function formatLogEntry(
 export function createAccessLogger(
   config: LoggerConfig = {},
   sink: (line: string) => void = console.log,
+  resolveClientIp: (c: Context) => string | null = (c) =>
+    extractClientIp(c.req.raw.headers),
 ): MiddlewareHandler {
   const enabled = config.enabled ?? true;
   const format = config.format ?? "json";
@@ -101,7 +103,7 @@ export function createAccessLogger(
       path,
       status: c.res.status,
       durationMs,
-      clientIp: extractClientIp(c.req.raw.headers),
+      clientIp: resolveClientIp(c),
       contentLength,
       userAgent: c.req.header("user-agent") ?? null,
     };
