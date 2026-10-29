@@ -11,42 +11,44 @@ export interface EIP3009Authorization {
   validAfter: number | string;
   validBefore: number | string;
   nonce: string;
-  v?: number;
-  r?: string;
-  s?: string;
+  v?: number | undefined;
+  r?: string | undefined;
+  s?: string | undefined;
 }
 
 export interface DecodedPaymentPayload {
-  x402Version?: number;
-  scheme?: string;
-  network?: string;
-  asset?: string;
-  authorization?: EIP3009Authorization;
-  signature?: string;
+  x402Version?: number | undefined;
+  scheme?: string | undefined;
+  network?: string | undefined;
+  asset?: string | undefined;
+  authorization?: EIP3009Authorization | undefined;
+  signature?: string | undefined;
   rawJson: Record<string, unknown>;
 }
 
 export interface ValidationWindowOptions {
   /** Maximum allowable clock drift between client and server in seconds. Default: 30 */
-  maxDriftSeconds?: number;
+  maxDriftSeconds?: number | undefined;
   /** Current epoch time in seconds (defaults to Date.now() / 1000). */
-  nowSeconds?: number;
+  nowSeconds?: number | undefined;
 }
 
 export interface SignatureValidationResult {
   isValid: boolean;
-  reason?: string;
-  payer?: string;
-  payTo?: string;
-  nonce?: string;
-  validAfter?: number;
-  validBefore?: number;
+  reason?: string | undefined;
+  payer?: string | undefined;
+  payTo?: string | undefined;
+  nonce?: string | undefined;
+  validAfter?: number | undefined;
+  validBefore?: number | undefined;
 }
 
 /**
  * Decodes a base64 encoded PAYMENT-SIGNATURE or X-PAYMENT header into a structured payload.
  */
-export function decodePaymentSignature(rawHeader: string): DecodedPaymentPayload {
+export function decodePaymentSignature(
+  rawHeader: string,
+): DecodedPaymentPayload {
   if (!rawHeader || typeof rawHeader !== "string") {
     throw new Error("Missing or invalid payment signature header string");
   }
@@ -65,21 +67,29 @@ export function decodePaymentSignature(rawHeader: string): DecodedPaymentPayload
     throw new Error("Decoded payment signature payload is not valid JSON");
   }
 
-  const payloadObj = (parsed.payload && typeof parsed.payload === "object"
-    ? parsed.payload
-    : parsed) as Record<string, unknown>;
+  const payloadObj = (
+    parsed.payload && typeof parsed.payload === "object"
+      ? parsed.payload
+      : parsed
+  ) as Record<string, unknown>;
 
-  const auth = (payloadObj.authorization && typeof payloadObj.authorization === "object"
-    ? payloadObj.authorization
-    : undefined) as EIP3009Authorization | undefined;
+  const auth = (
+    payloadObj.authorization && typeof payloadObj.authorization === "object"
+      ? payloadObj.authorization
+      : undefined
+  ) as EIP3009Authorization | undefined;
 
   return {
-    x402Version: typeof parsed.x402Version === "number" ? parsed.x402Version : undefined,
+    x402Version:
+      typeof parsed.x402Version === "number" ? parsed.x402Version : undefined,
     scheme: typeof parsed.scheme === "string" ? parsed.scheme : undefined,
     network: typeof parsed.network === "string" ? parsed.network : undefined,
     asset: typeof payloadObj.asset === "string" ? payloadObj.asset : undefined,
     authorization: auth,
-    signature: typeof payloadObj.signature === "string" ? payloadObj.signature : undefined,
+    signature:
+      typeof payloadObj.signature === "string"
+        ? payloadObj.signature
+        : undefined,
     rawJson: parsed,
   };
 }

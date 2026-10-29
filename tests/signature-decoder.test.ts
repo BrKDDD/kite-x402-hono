@@ -26,14 +26,18 @@ describe("signature-decoder", () => {
   };
 
   test("decodes base64-encoded payment signature", () => {
-    const rawBase64 = Buffer.from(JSON.stringify(samplePayload)).toString("base64");
+    const rawBase64 = Buffer.from(JSON.stringify(samplePayload)).toString(
+      "base64",
+    );
     const decoded = decodePaymentSignature(rawBase64);
 
     expect(decoded.x402Version).toBe(2);
     expect(decoded.scheme).toBe("exact");
     expect(decoded.network).toBe("kite-testnet");
     expect(decoded.asset).toBe("0x3333333333333333333333333333333333333333");
-    expect(decoded.authorization?.from).toBe("0x1111111111111111111111111111111111111111");
+    expect(decoded.authorization?.from).toBe(
+      "0x1111111111111111111111111111111111111111",
+    );
     expect(decoded.authorization?.nonce).toBe("0xabcdef123456");
   });
 
