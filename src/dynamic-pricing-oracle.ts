@@ -4,14 +4,14 @@
  * and service load factors.
  */
 
-export type CongestionLevel = 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
+export type CongestionLevel = "LOW" | "NORMAL" | "HIGH" | "EXTREME";
 
 export interface CongestionMultiplierConfig {
-  lowMultiplierBps: number;     // e.g. 8500 = 0.85x (15% discount for off-peak)
-  normalMultiplierBps: number;  // 10000 = 1.0x
-  highMultiplierBps: number;    // 12500 = 1.25x (+25%)
+  lowMultiplierBps: number; // e.g. 8500 = 0.85x (15% discount for off-peak)
+  normalMultiplierBps: number; // 10000 = 1.0x
+  highMultiplierBps: number; // 12500 = 1.25x (+25%)
   extremeMultiplierBps: number; // 20000 = 2.0x (+100%)
-  maxSurchargeAtomic: bigint;   // Maximum fee cap
+  maxSurchargeAtomic: bigint; // Maximum fee cap
 }
 
 export interface PricingEvaluation {
@@ -34,7 +34,7 @@ export const DEFAULT_MULTIPLIERS: CongestionMultiplierConfig = {
 
 export class DynamicPricingOracle {
   private config: CongestionMultiplierConfig;
-  private currentCongestion: CongestionLevel = 'NORMAL';
+  private currentCongestion: CongestionLevel = "NORMAL";
   private manualOverride: CongestionLevel | null = null;
 
   constructor(config: Partial<CongestionMultiplierConfig> = {}) {
@@ -51,15 +51,18 @@ export class DynamicPricingOracle {
   /**
    * Updates congestion metric based on queue depth or average gas fee.
    */
-  public updateCongestionMetrics(pendingQueueSize: number, avgGasGwei: number): CongestionLevel {
+  public updateCongestionMetrics(
+    pendingQueueSize: number,
+    avgGasGwei: number,
+  ): CongestionLevel {
     if (pendingQueueSize > 500 || avgGasGwei > 150) {
-      this.currentCongestion = 'EXTREME';
+      this.currentCongestion = "EXTREME";
     } else if (pendingQueueSize > 100 || avgGasGwei > 50) {
-      this.currentCongestion = 'HIGH';
+      this.currentCongestion = "HIGH";
     } else if (pendingQueueSize < 10 && avgGasGwei < 15) {
-      this.currentCongestion = 'LOW';
+      this.currentCongestion = "LOW";
     } else {
-      this.currentCongestion = 'NORMAL';
+      this.currentCongestion = "NORMAL";
     }
     return this.currentCongestion;
   }
@@ -72,22 +75,23 @@ export class DynamicPricingOracle {
     let multiplierBps = this.config.normalMultiplierBps;
 
     switch (level) {
-      case 'LOW':
+      case "LOW":
         multiplierBps = this.config.lowMultiplierBps;
         break;
-      case 'NORMAL':
+      case "NORMAL":
         multiplierBps = this.config.normalMultiplierBps;
         break;
-      case 'HIGH':
+      case "HIGH":
         multiplierBps = this.config.highMultiplierBps;
         break;
-      case 'EXTREME':
+      case "EXTREME":
         multiplierBps = this.config.extremeMultiplierBps;
         break;
     }
 
     const unscaled = (baseAmountAtomic * BigInt(multiplierBps)) / 10000n;
-    let surcharge = unscaled > baseAmountAtomic ? unscaled - baseAmountAtomic : 0n;
+    let surcharge =
+      unscaled > baseAmountAtomic ? unscaled - baseAmountAtomic : 0n;
 
     // Apply surcharge cap
     if (surcharge > this.config.maxSurchargeAtomic) {
@@ -95,16 +99,14 @@ export class DynamicPricingOracle {
     }
 
     const finalAmountAtomic =
-      unscaled > baseAmountAtomic
-        ? baseAmountAtomic + surcharge
-        : unscaled; // handles discounts when multiplier < 10000
+      unscaled > baseAmountAtomic ? baseAmountAtomic + surcharge : unscaled; // handles discounts when multiplier < 10000
 
     const reason =
-      level === 'LOW'
-        ? 'Off-peak incentive discount applied'
-        : level === 'HIGH' || level === 'EXTREME'
-        ? `Surge pricing active (${level} congestion)`
-        : 'Standard baseline pricing';
+      level === "LOW"
+        ? "Off-peak incentive discount applied"
+        : level === "HIGH" || level === "EXTREME"
+          ? `Surge pricing active (${level} congestion)`
+          : "Standard baseline pricing";
 
     return {
       baseAmountAtomic,
