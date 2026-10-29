@@ -24,3 +24,10 @@ export {
   type RateLimiterOptions,
 } from "./rate-limiter.js";
 export { evaluateIpFilter, parseIpList, matchesIpRule } from "./firewall.js";
+export {
+  DynamicPricingOracle,
+  DEFAULT_MULTIPLIERS,
+  type CongestionLevel,
+  type CongestionMultiplierConfig,
+  type PricingEvaluation,
+} from "./dynamic-pricing-oracle.js";
