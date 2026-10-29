@@ -16,7 +16,10 @@ describe("CircuitBreaker", () => {
   });
 
   test("trips to OPEN after consecutive failures threshold", async () => {
-    const cb = new CircuitBreaker({ failureThreshold: 3, recoveryTimeoutMs: 100 });
+    const cb = new CircuitBreaker({
+      failureThreshold: 3,
+      recoveryTimeoutMs: 100,
+    });
 
     for (let i = 0; i < 3; i++) {
       await expect(

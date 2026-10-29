@@ -33,7 +33,9 @@ export class CircuitBreakerOpenError extends Error {
   readonly retryAfterMs: number;
 
   constructor(retryAfterMs: number) {
-    super(`Circuit breaker is OPEN. Retry after ${Math.ceil(retryAfterMs / 1000)}s`);
+    super(
+      `Circuit breaker is OPEN. Retry after ${Math.ceil(retryAfterMs / 1000)}s`,
+    );
     this.name = "CircuitBreakerOpenError";
     this.retryAfterMs = retryAfterMs;
   }
