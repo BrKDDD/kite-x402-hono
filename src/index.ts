@@ -24,3 +24,10 @@ export {
   type RateLimiterOptions,
 } from "./rate-limiter.js";
 export { evaluateIpFilter, parseIpList, matchesIpRule } from "./firewall.js";
+export {
+  CircuitBreaker,
+  CircuitBreakerOpenError,
+  type CircuitBreakerOptions,
+  type CircuitBreakerStats,
+  type CircuitState,
+} from "./circuit-breaker.js";
