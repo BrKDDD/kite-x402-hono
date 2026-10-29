@@ -24,3 +24,11 @@ export {
   type RateLimiterOptions,
 } from "./rate-limiter.js";
 export { evaluateIpFilter, parseIpList, matchesIpRule } from "./firewall.js";
+export {
+  decodePaymentSignature,
+  validateAuthorizationWindow,
+  type DecodedPaymentPayload,
+  type EIP3009Authorization,
+  type SignatureValidationResult,
+  type ValidationWindowOptions,
+} from "./signature-decoder.js";
