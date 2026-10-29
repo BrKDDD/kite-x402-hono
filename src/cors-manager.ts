@@ -24,7 +24,15 @@ export interface CorsOptions {
   credentials?: boolean;
 }
 
-export const DEFAULT_ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"];
+export const DEFAULT_ALLOWED_METHODS = [
+  "GET",
+  "POST",
+  "PUT",
+  "DELETE",
+  "PATCH",
+  "OPTIONS",
+  "HEAD",
+];
 
 export const DEFAULT_ALLOWED_HEADERS = [
   "content-type",
@@ -47,7 +55,9 @@ export const DEFAULT_EXPOSED_HEADERS = [
 /**
  * Creates a CORS middleware handler for Hono applications.
  */
-export function createCorsMiddleware(options: CorsOptions = {}): MiddlewareHandler {
+export function createCorsMiddleware(
+  options: CorsOptions = {},
+): MiddlewareHandler {
   const originOption = options.origin ?? "*";
   const allowMethods = options.allowMethods ?? DEFAULT_ALLOWED_METHODS;
   const allowHeaders = options.allowHeaders ?? DEFAULT_ALLOWED_HEADERS;
@@ -55,7 +65,9 @@ export function createCorsMiddleware(options: CorsOptions = {}): MiddlewareHandl
   const maxAge = options.maxAge ?? 86400;
   const credentials = options.credentials ?? false;
 
-  function resolveAllowedOrigin(requestOrigin: string | undefined): string | null {
+  function resolveAllowedOrigin(
+    requestOrigin: string | undefined,
+  ): string | null {
     if (!requestOrigin) return "*";
     if (originOption === "*") return "*";
 
@@ -101,7 +113,10 @@ export function createCorsMiddleware(options: CorsOptions = {}): MiddlewareHandl
     // Inject headers into response
     if (allowedOrigin) {
       c.res.headers.set("Access-Control-Allow-Origin", allowedOrigin);
-      c.res.headers.set("Access-Control-Expose-Headers", exposeHeaders.join(", "));
+      c.res.headers.set(
+        "Access-Control-Expose-Headers",
+        exposeHeaders.join(", "),
+      );
 
       if (credentials) {
         c.res.headers.set("Access-Control-Allow-Credentials", "true");

@@ -17,8 +17,12 @@ describe("cors-manager", () => {
 
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain("POST");
-    expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain("payment-signature");
+    expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+    expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain(
+      "payment-signature",
+    );
   });
 
   test("enforces origin whitelist array", async () => {
@@ -38,7 +42,9 @@ describe("cors-manager", () => {
       },
     });
     expect(allowed.status).toBe(204);
-    expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("https://trusted.ai");
+    expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://trusted.ai",
+    );
 
     const denied = await app.request("/v1/data", {
       method: "OPTIONS",
@@ -63,6 +69,8 @@ describe("cors-manager", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(res.headers.get("Access-Control-Expose-Headers")).toContain("payment-response");
+    expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+      "payment-response",
+    );
   });
 });
