@@ -11,6 +11,7 @@ interface Lease {
   payer: string;
   nonce: string;
   settling: boolean;
+  reservation: { commit: () => void; release: () => void };
 }
 interface Scope {
   lease?: Lease;
@@ -50,13 +51,14 @@ export function createPaymentProtection(
           | undefined;
         const payer = result.payer ?? authorization?.from;
         const nonce = authorization?.nonce;
-        if (!payer || !nonce || !guard.acquire(payer, nonce)) {
+        const reservation = payer && nonce ? guard.reserve(payer, nonce) : null;
+        if (!payer || !nonce || !reservation) {
           return {
             isValid: false,
             invalidReason: "payment_nonce_replay_detected",
           };
         }
-        scope.lease = { payer, nonce, settling: false };
+        scope.lease = { payer, nonce, settling: false, reservation };
       }
       return result;
     },
@@ -65,7 +67,7 @@ export function createPaymentProtection(
       // Reserve conservatively before settlement: a transport failure may hide a successful charge.
       if (lease && guard) {
         lease.settling = true;
-        guard.commit(lease.payer, lease.nonce);
+        lease.reservation.commit();
       }
       return base.settle(payload, requirements);
     },
@@ -179,7 +181,7 @@ export function createPaymentProtection(
       // Completed responses survive release; failed or rejected reservations do not.
       if (key) cache.release(key);
       if (scope.lease && !scope.lease.settling)
-        guard?.release(scope.lease.payer, scope.lease.nonce);
+        scope.lease.reservation.release();
     }
   }
   return { facilitator, run };

@@ -174,6 +174,8 @@ Compatibility notes:
 - Unmatched or unknown routes return structured JSON `404 {"error":"not_found"}` with
   `Cache-Control: no-store` rather than unformatted plaintext error responses.
 
+Active nonce reservations remain held until their request finishes or settlement begins. The legacy `inFlightTtlMs` option is retained but does not evict active work. The middleware uses owner-bound reservations so an old request cannot release a replacement. Consumed retention remains process-local and time-limited; persistent or multi-process coordination belongs to the application.
+
 ## Verification
 
 ### Idempotent paid retries
