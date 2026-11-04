@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Integrate and review community PRs #22, #24, #28–#29, #31, #33–#51.
+- Isolate paid idempotent retries; keep active reservations and nonce leases owner-bound; default to socket IP identity and validate IPv6 firewall rules.
+- Repair optional component authentication, cache privacy/bounds, receipt retention/indexing, probe cleanup/coalescing, queue timers and policy enforcement. Export optional library utilities without automatically enabling them.
+- Upgrade official x402 SDK packages to 2.29.0 and Hono to 4.13.16; retain paid ordinary OPTIONS explicitly after SDK route-matching changes.
+- Add independent cryptographic and security regression coverage. See docs/pr-review-2026-11-04.md for component limits.
+
 ## 0.3.3
 
 - Implement graceful CLI shutdown on `SIGINT`/`SIGTERM` with active request draining (`server.stop(false)`) and configurable `SHUTDOWN_TIMEOUT_MS`.

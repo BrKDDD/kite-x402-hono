@@ -64,3 +64,29 @@ export {
   PrometheusMetricsExporter,
   type MetricsSnapshot,
 } from "./prometheus-metrics.js";
+
+export * from "./traffic-shaper.js";
+
+export * from "./response-caching.js";
+
+export * from "./webhook-dispatcher.js";
+
+export * from "./rpc-circuit-breaker.js";
+
+export * from "./audit-trace-emitter.js";
+
+export * from "./cache/payment-auth-cache.js";
+
+export * from "./middleware/scheme-validator.js";
+
+export * from "./middleware/payload-validator.js";
+
+export * from "./telemetry/latency-histogram.js";
+
+export * from "./middleware/sliding-window-limiter.js";
+
+export * from "./middleware/cookie-session-store.js";
+
+export * from "./middleware/brotli-compression.js";
+
+export * from "./middleware/edge-rate-throttler.js";

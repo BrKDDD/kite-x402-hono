@@ -9,19 +9,21 @@ export class LatencyHistogram {
   }
 
   public record(durationMs: number): void {
+    if (!Number.isFinite(durationMs) || durationMs < 0)
+      throw new Error("Invalid duration");
     this.totalCount++;
     this.sumMs += durationMs;
 
     let placed = false;
     for (let i = 0; i < this.buckets.length; i++) {
-      if (durationMs <= this.buckets[i]) {
-        this.counts[i]++;
+      if (durationMs <= this.buckets[i]!) {
+        this.counts[i] = (this.counts[i] ?? 0) + 1;
         placed = true;
         break;
       }
     }
     if (!placed) {
-      this.counts[this.counts.length - 1]++;
+      this.counts[this.counts.length - 1] = (this.counts.at(-1) ?? 0) + 1;
     }
   }
 

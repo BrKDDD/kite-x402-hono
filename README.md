@@ -337,3 +337,7 @@ Access logs omit query strings, bodies and payment signatures. `clientIp` uses t
 ### Client IP and reverse proxies
 
 Socket peer addresses are used by default (`TRUST_PROXY_HEADERS=false`). Direct clients cannot change their identity with forwarding headers. Enable `TRUST_PROXY_HEADERS=true` only behind an ingress that replaces inbound forwarding headers. Set `TRUSTED_PROXY_CIDRS` (comma-separated IPs or CIDRs) to restrict trusted peers; X-Forwarded-For is then read from right to left until the first untrusted hop. Without that list, the explicit legacy flag trusts forwarding claims and requires an isolated ingress. Missing or malformed claims fall back to the socket peer. Programmatic callers can provide `AppOptions.clientIp`; otherwise they must pass the socket peer as `c.env.clientIp`.
+
+### Community component review
+
+The next release includes optional library components and security corrections described in [the PR review report](docs/pr-review-2026-11-04.md). Utilities require explicit integration; adding a helper does not automatically enable dynamic prices, cached payment authorization, webhooks, sessions, distributed limiting or response compression. Forwarded client IP headers are disabled by default; configure trusted proxies explicitly when deploying behind an ingress.

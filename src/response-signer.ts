@@ -1,6 +1,7 @@
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 /**
  * Cryptographic Receipt & Response Attestation Signer for x402 payment responses.
- * Provides non-repudiation and proof-of-delivery by signing HTTP response metadata
+ * Provides shared-secret integrity authentication of HTTP response metadata
  * and settled transaction proofs.
  */
 
@@ -23,8 +24,11 @@ export class ResponseSigner {
   private keyId: string;
 
   constructor(options: ResponseSignerOptions) {
-    if (!options.signingSecret || options.signingSecret.length < 8) {
-      throw new Error("signingSecret must be at least 8 characters");
+    if (
+      !options.signingSecret ||
+      Buffer.byteLength(options.signingSecret) < 32
+    ) {
+      throw new Error("signingSecret must be at least 32 bytes");
     }
     this.secret = options.signingSecret;
     this.keyId = options.keyId ?? "kite-receipt-k1";
@@ -34,12 +38,7 @@ export class ResponseSigner {
    * Generates a deterministic hash of the response payload.
    */
   public hashContent(content: string): string {
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      hash = (hash << 5) - hash + content.charCodeAt(i);
-      hash |= 0;
-    }
-    return `0x${Math.abs(hash).toString(16).padStart(8, "0")}`;
+    return "0x" + createHash("sha256").update(content).digest("hex");
   }
 
   /**
@@ -51,18 +50,21 @@ export class ResponseSigner {
     statusCode: number,
     responseBody: string,
   ): { receipt: ResponseReceipt; headerValue: string } {
+    if (
+      ![paymentTxHash, requestId, this.keyId].every((v) =>
+        /^[A-Za-z0-9_.:~-]{1,256}$/.test(v),
+      )
+    )
+      throw new Error("Invalid receipt identifier");
     const timestampMs = Date.now();
     const bodyHash = this.hashContent(responseBody);
-    const message = `${this.keyId}:${paymentTxHash}:${requestId}:${statusCode}:${bodyHash}:${timestampMs}`;
-
-    // Compute HMAC-like signature
-    let sigHash = 0;
-    const combined = `${message}:${this.secret}`;
-    for (let i = 0; i < combined.length; i++) {
-      sigHash = (sigHash << 7) - sigHash + combined.charCodeAt(i);
-      sigHash |= 0;
-    }
-    const signature = `sig_${Math.abs(sigHash).toString(16).padStart(12, "0")}`;
+    const signature = this.mac(
+      paymentTxHash,
+      requestId,
+      statusCode,
+      bodyHash,
+      timestampMs,
+    );
 
     const receipt: ResponseReceipt = {
       paymentTxHash,
@@ -86,7 +88,13 @@ export class ResponseSigner {
     responseBody: string,
     maxAgeMs: number = 300_000,
   ): boolean {
-    if (Date.now() - receipt.timestampMs > maxAgeMs) {
+    if (
+      !Number.isFinite(maxAgeMs) ||
+      maxAgeMs < 0 ||
+      !Number.isSafeInteger(receipt.timestampMs) ||
+      receipt.timestampMs > Date.now() ||
+      Date.now() - receipt.timestampMs > maxAgeMs
+    ) {
       return false; // Stale receipt
     }
 
@@ -95,15 +103,41 @@ export class ResponseSigner {
       return false; // Body mismatch
     }
 
-    const message = `${this.keyId}:${receipt.paymentTxHash}:${receipt.requestId}:${receipt.statusCode}:${computedBodyHash}:${receipt.timestampMs}`;
-    let sigHash = 0;
-    const combined = `${message}:${this.secret}`;
-    for (let i = 0; i < combined.length; i++) {
-      sigHash = (sigHash << 7) - sigHash + combined.charCodeAt(i);
-      sigHash |= 0;
-    }
-    const expectedSig = `sig_${Math.abs(sigHash).toString(16).padStart(12, "0")}`;
-
-    return expectedSig === receipt.signature;
+    const expected = this.mac(
+      receipt.paymentTxHash,
+      receipt.requestId,
+      receipt.statusCode,
+      computedBodyHash,
+      receipt.timestampMs,
+    );
+    if (!/^hmac_[a-f0-9]{64}$/.test(receipt.signature)) return false;
+    return timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(receipt.signature),
+    );
+  }
+  private mac(
+    tx: string,
+    requestId: string,
+    status: number,
+    hash: string,
+    time: number,
+  ): string {
+    return (
+      "hmac_" +
+      createHmac("sha256", this.secret)
+        .update(
+          JSON.stringify([
+            "kite-receipt-v1",
+            this.keyId,
+            tx,
+            requestId,
+            status,
+            hash,
+            time,
+          ]),
+        )
+        .digest("hex")
+    );
   }
 }

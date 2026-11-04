@@ -1,6 +1,6 @@
 /**
  * Structured Compliance Audit Trail and Latency Trace Emitter
- * Records tamper-evident audit traces for payment authorizations and facilitator requests.
+ * Records in-memory diagnostic traces (not tamper-evident audit proofs) for payment authorizations and facilitator requests.
  */
 
 export interface AuditEventTrace {
@@ -23,6 +23,8 @@ export class AuditTraceEmitter {
   private readonly maxTraces: number;
 
   constructor(maxTraces: number = 500) {
+    if (!Number.isSafeInteger(maxTraces) || maxTraces < 1)
+      throw new Error("Invalid trace limit");
     this.maxTraces = maxTraces;
   }
 
@@ -32,7 +34,7 @@ export class AuditTraceEmitter {
       timestamp: new Date().toISOString(),
     };
 
-    this.traces.push(fullEvent);
+    this.traces.push(structuredClone(fullEvent));
     if (this.traces.length > this.maxTraces) {
       this.traces.shift();
     }
@@ -41,7 +43,7 @@ export class AuditTraceEmitter {
   }
 
   public getTraces(): readonly AuditEventTrace[] {
-    return this.traces;
+    return structuredClone(this.traces);
   }
 
   public clear(): void {

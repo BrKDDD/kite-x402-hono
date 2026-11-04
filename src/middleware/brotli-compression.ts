@@ -1,6 +1,9 @@
-import zlib from 'zlib';
+import zlib from "zlib";
 
-export function shouldCompress(contentLength: number, mimeType = 'application/json'): boolean {
+export function shouldCompress(
+  contentLength: number,
+  mimeType = "application/json",
+): boolean {
   if (contentLength < 1024) return false;
   return /json|text|javascript/.test(mimeType);
 }

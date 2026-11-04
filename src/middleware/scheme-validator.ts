@@ -1,24 +1,42 @@
-import type { Context, Next } from 'hono';
-
+import type { Context, Next } from "hono";
 export interface RoutePaymentPolicy {
   acceptedSchemes: string[];
   minAmountUsd: number;
   facilitatorRequired?: boolean;
 }
-
-export const createSchemeValidator = (policy: RoutePaymentPolicy) => {
+export interface VerifiedPaymentMetadata {
+  scheme: string;
+  amountUsd: number;
+  facilitatorVerified: boolean;
+}
+/** Place after verification; metadata must come from trusted server code. */
+export const createSchemeValidator = (
+  policy: RoutePaymentPolicy,
+  resolve?: (
+    c: Context,
+  ) =>
+    | VerifiedPaymentMetadata
+    | undefined
+    | Promise<VerifiedPaymentMetadata | undefined>,
+) => {
+  if (
+    !policy.acceptedSchemes.length ||
+    !Number.isFinite(policy.minAmountUsd) ||
+    policy.minAmountUsd < 0
+  )
+    throw new Error("Invalid payment policy");
   return async (c: Context, next: Next) => {
-    const schemeHeader = c.req.header('X-Payment-Scheme') || 'x402';
-    if (!policy.acceptedSchemes.includes(schemeHeader)) {
-      return c.json(
-        {
-          type: 'https://kite.ai/errors/unsupported-scheme',
-          title: 'Unsupported Payment Scheme',
-          status: 400,
-          detail: `Scheme '${schemeHeader}' is not accepted on this endpoint.`,
-        },
-        400
-      );
+    const payment = await resolve?.(c);
+    if (
+      !payment ||
+      !policy.acceptedSchemes.includes(payment.scheme) ||
+      !Number.isFinite(payment.amountUsd) ||
+      payment.amountUsd < policy.minAmountUsd ||
+      (policy.facilitatorRequired && !payment.facilitatorVerified)
+    ) {
+      return c.json({ error: "payment_policy_not_satisfied" }, 402, {
+        "cache-control": "no-store",
+      });
     }
     await next();
   };

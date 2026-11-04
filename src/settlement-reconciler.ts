@@ -35,7 +35,9 @@ export class SettlementReconciler {
   private readonly maxCapacity: number;
 
   constructor(maxCapacity: number = 5_000) {
-    this.maxCapacity = Math.max(100, maxCapacity);
+    if (!Number.isSafeInteger(maxCapacity) || maxCapacity < 1)
+      throw new Error("Invalid receipt capacity");
+    this.maxCapacity = maxCapacity;
   }
 
   record(receipt: SettlementReceipt): void {
@@ -45,6 +47,8 @@ export class SettlementReconciler {
 
     const txKey = receipt.txHash.toLowerCase();
     const payerKey = receipt.payer.toLowerCase();
+    if (this.receiptsByTx.has(txKey)) return;
+    receipt = { ...receipt };
 
     // Capacity eviction (FIFO)
     if (this.orderedTxHashes.length >= this.maxCapacity) {
@@ -61,6 +65,8 @@ export class SettlementReconciler {
               (r) => r.txHash.toLowerCase() === oldestTx,
             );
             if (idx !== -1) payerList.splice(idx, 1);
+            if (!payerList.length)
+              this.receiptsByPayer.delete(evicted.payer.toLowerCase());
           }
         }
       }
@@ -75,11 +81,14 @@ export class SettlementReconciler {
   }
 
   getByTxHash(txHash: string): SettlementReceipt | undefined {
-    return this.receiptsByTx.get(txHash.toLowerCase());
+    const found = this.receiptsByTx.get(txHash.toLowerCase());
+    return found ? { ...found } : undefined;
   }
 
   getByPayer(payer: string): SettlementReceipt[] {
-    return [...(this.receiptsByPayer.get(payer.toLowerCase()) ?? [])];
+    return (this.receiptsByPayer.get(payer.toLowerCase()) ?? []).map((r) => ({
+      ...r,
+    }));
   }
 
   query(filter: SettlementQuery = {}): SettlementReceipt[] {
@@ -99,7 +108,7 @@ export class SettlementReconciler {
       matches = matches.slice(0, filter.limit);
     }
 
-    return matches;
+    return matches.map((r) => ({ ...r }));
   }
 
   getSummary(): ReconcilerSummary {

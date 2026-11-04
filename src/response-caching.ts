@@ -25,12 +25,19 @@ export class ResponseCacheStore {
   private readonly maxEntries: number;
 
   constructor(options: ResponseCacheOptions) {
+    if (
+      !Number.isFinite(options.defaultTtlSeconds) ||
+      options.defaultTtlSeconds <= 0 ||
+      !Number.isSafeInteger(options.maxEntries ?? 1000) ||
+      (options.maxEntries ?? 1000) < 1
+    )
+      throw new Error("Invalid cache limits");
     this.defaultTtlMs = options.defaultTtlSeconds * 1000;
     this.maxEntries = options.maxEntries ?? 1000;
   }
 
   public generateKey(method: string, path: string, body?: string): string {
-    const content = `${method.toUpperCase()}:${path}:${body || ""}`;
+    const content = JSON.stringify([method.toUpperCase(), path, body ?? ""]);
     return createHash("sha256").update(content).digest("hex");
   }
 
@@ -46,7 +53,7 @@ export class ResponseCacheStore {
       this.cache.delete(key);
       return null;
     }
-    return entry;
+    return structuredClone(entry);
   }
 
   public set(
@@ -56,20 +63,38 @@ export class ResponseCacheStore {
     headers: Record<string, string> = {},
     ttlSeconds?: number,
   ): CachedResponseEntry {
+    if (Buffer.byteLength(body) > 1024 * 1024)
+      throw new Error("Cached response exceeds 1 MiB");
+    for (const [id, entry] of this.cache)
+      if (entry.expiresAt <= Date.now()) this.cache.delete(id);
+    this.cache.delete(key);
+    const bytes = [...this.cache.values()].reduce(
+      (n, e) => n + Buffer.byteLength(e.body),
+      0,
+    );
+    if (bytes + Buffer.byteLength(body) > 32 * 1024 * 1024)
+      throw new Error("Response cache exceeds 32 MiB");
     if (this.cache.size >= this.maxEntries) {
       const oldestKey = this.cache.keys().next().value;
       if (oldestKey) this.cache.delete(oldestKey);
     }
 
-    const ttlMs = ttlSeconds ? ttlSeconds * 1000 : this.defaultTtlMs;
+    const ttlMs =
+      ttlSeconds === undefined ? this.defaultTtlMs : ttlSeconds * 1000;
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0)
+      throw new Error("Invalid cache TTL");
     const etag = this.generateEtag(body);
     const entry: CachedResponseEntry = {
       body,
       status,
       headers: {
-        ...headers,
+        ...Object.fromEntries(
+          Object.entries(headers).filter(([k]) =>
+            ["content-type", "content-language"].includes(k.toLowerCase()),
+          ),
+        ),
         ETag: etag,
-        "Cache-Control": `public, max-age=${Math.floor(ttlMs / 1000)}`,
+        "Cache-Control": "private, no-store",
       },
       etag,
       createdAt: Date.now(),
@@ -77,7 +102,7 @@ export class ResponseCacheStore {
     };
 
     this.cache.set(key, entry);
-    return entry;
+    return structuredClone(entry);
   }
 
   public clear(): void {

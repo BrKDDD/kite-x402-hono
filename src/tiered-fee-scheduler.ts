@@ -46,7 +46,17 @@ export class TieredFeeScheduler {
 
   constructor(options: TieredFeeSchedulerOptions = {}) {
     this.epochTtlMs = options.epochTtlMs ?? 30 * 24 * 60 * 60 * 1000;
+    if (!Number.isFinite(this.epochTtlMs) || this.epochTtlMs <= 0)
+      throw new Error("Invalid volume TTL");
     const unsortedTiers = options.tiers ?? DEFAULT_FEE_TIERS;
+    for (const tier of unsortedTiers)
+      if (
+        tier.minCumulativeVolumeAtomic < 0n ||
+        !Number.isInteger(tier.discountBps) ||
+        tier.discountBps < 0 ||
+        tier.discountBps > 10000
+      )
+        throw new Error("Invalid fee tier");
     // Sort descending by minCumulativeVolumeAtomic for waterfall evaluation
     this.tiers = [...unsortedTiers].sort((a, b) =>
       b.minCumulativeVolumeAtomic > a.minCumulativeVolumeAtomic ? 1 : -1,
@@ -60,8 +70,15 @@ export class TieredFeeScheduler {
     clientAddress: string,
     settledAmountAtomic: bigint,
   ): ClientVolumeRecord {
+    if (!clientAddress) throw new Error("Missing client");
     const key = clientAddress.toLowerCase();
     const now = Date.now();
+    if (settledAmountAtomic < 0n) throw new Error("Negative settled amount");
+    for (const [id, r] of this.clientVolumes)
+      if (now - r.lastUpdatedMs > this.epochTtlMs)
+        this.clientVolumes.delete(id);
+    if (!this.clientVolumes.has(key) && this.clientVolumes.size >= 10000)
+      throw new Error("Client capacity reached");
     let record = this.clientVolumes.get(key);
 
     if (!record || now - record.lastUpdatedMs > this.epochTtlMs) {
@@ -88,6 +105,7 @@ export class TieredFeeScheduler {
     clientAddress: string,
     baseAmountAtomic: bigint,
   ): TierEvaluation {
+    if (!clientAddress) throw new Error("Missing client");
     const key = clientAddress.toLowerCase();
     const now = Date.now();
     const record = this.clientVolumes.get(key);
@@ -97,8 +115,9 @@ export class TieredFeeScheduler {
         ? record.cumulativeVolumeAtomic
         : 0n;
 
+    if (baseAmountAtomic < 0n) throw new Error("Negative fee");
     // Find the matching tier
-    let activeTier: FeeTier = this.tiers[this.tiers.length - 1] ?? {
+    let activeTier: FeeTier = {
       name: "Standard",
       minCumulativeVolumeAtomic: 0n,
       discountBps: 0,

@@ -33,18 +33,28 @@ export interface ReadinessProbeOptions {
 }
 
 export class ReadinessProbe {
+  private inFlight: Promise<ReadinessSnapshot> | undefined;
   private lastSnapshot: ReadinessSnapshot | null = null;
   private readonly cacheTtlMs: number;
   private readonly defaultTimeoutMs: number;
   private readonly targets: ProbeTarget[] = [];
 
   constructor(options: ReadinessProbeOptions = {}) {
+    for (const n of [options.cacheTtlMs ?? 5000, options.timeoutMs ?? 3000])
+      if (!Number.isFinite(n) || n <= 0)
+        throw new Error("Invalid probe limits");
     this.cacheTtlMs = options.cacheTtlMs ?? 5_000;
     this.defaultTimeoutMs = options.timeoutMs ?? 3_000;
   }
 
   addTarget(target: ProbeTarget): this {
-    this.targets.push(target);
+    if (
+      !Number.isFinite(target.timeoutMs ?? this.defaultTimeoutMs) ||
+      (target.timeoutMs ?? this.defaultTimeoutMs) <= 0
+    )
+      throw new Error("Invalid target timeout");
+    this.lastSnapshot = null;
+    this.targets.push({ ...target });
     return this;
   }
 
@@ -52,22 +62,23 @@ export class ReadinessProbe {
     const timeout = target.timeoutMs ?? this.defaultTimeoutMs;
     const start = Date.now();
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(target.url, {
+      let response = await fetch(target.url, {
         method: "HEAD",
         signal: controller.signal,
-      }).catch(async () => {
-        // Fallback to GET if HEAD method is disallowed
-        return await fetch(target.url, {
+        redirect: "error",
+      });
+      if ([405, 501].includes(response.status)) {
+        void response.body?.cancel().catch(() => {});
+        response = await fetch(target.url, {
           method: "GET",
           signal: controller.signal,
+          redirect: "error",
         });
-      });
-
-      clearTimeout(timer);
+      }
+      void response.body?.cancel().catch(() => {});
       const latencyMs = Date.now() - start;
 
       // Status codes < 500 indicate the service is responsive (even 402/404 proves connectivity)
@@ -85,10 +96,22 @@ export class ReadinessProbe {
         latencyMs: Date.now() - start,
         error: err instanceof Error ? err.message : String(err),
       };
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   async check(force: boolean = false): Promise<ReadinessSnapshot> {
+    if (this.inFlight) return structuredClone(await this.inFlight);
+    const run = this.checkOnce(force);
+    this.inFlight = run;
+    try {
+      return structuredClone(await run);
+    } finally {
+      if (this.inFlight === run) this.inFlight = undefined;
+    }
+  }
+  private async checkOnce(force: boolean): Promise<ReadinessSnapshot> {
     const now = Date.now();
 
     if (

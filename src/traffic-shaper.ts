@@ -4,6 +4,7 @@
  */
 
 export interface QueuedRequest<T = any> {
+  timer?: ReturnType<typeof setTimeout>;
   id: string;
   priority: number; // Higher number = higher priority
   timestamp: number;
@@ -25,6 +26,15 @@ export class TrafficShaper {
   private readonly config: Required<TrafficShaperConfig>;
 
   constructor(config: TrafficShaperConfig) {
+    if (
+      !Number.isSafeInteger(config.maxConcurrency) ||
+      config.maxConcurrency < 1 ||
+      !Number.isSafeInteger(config.maxQueueDepth) ||
+      config.maxQueueDepth < 0 ||
+      !Number.isFinite(config.queueTimeoutMs ?? 30000) ||
+      (config.queueTimeoutMs ?? 30000) < 0
+    )
+      throw new Error("Invalid queue limits");
     this.config = {
       maxConcurrency: config.maxConcurrency,
       maxQueueDepth: config.maxQueueDepth,
@@ -83,7 +93,7 @@ export class TrafficShaper {
       }
 
       if (this.config.queueTimeoutMs > 0) {
-        setTimeout(() => {
+        item.timer = setTimeout(() => {
           const idx = this.queue.indexOf(item);
           if (idx !== -1) {
             this.queue.splice(idx, 1);
@@ -108,6 +118,7 @@ export class TrafficShaper {
 
     const nextItem = this.queue.shift();
     if (!nextItem) return;
+    clearTimeout(nextItem.timer);
 
     this.activeCount++;
     try {

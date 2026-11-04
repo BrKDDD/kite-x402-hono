@@ -10,20 +10,25 @@ describe("readiness-probe", () => {
   });
 
   test("probes targets and caches subsequent calls within TTL", async () => {
-    const probe = new ReadinessProbe({ cacheTtlMs: 500 });
-    probe.addTarget({ name: "mock-target", url: "https://example.com" });
+    const server = Bun.serve({ port: 0, fetch: () => new Response("ok") });
+    try {
+      const probe = new ReadinessProbe({ cacheTtlMs: 500 });
+      probe.addTarget({ name: "mock-target", url: server.url.href });
 
-    const snap1 = await probe.check();
-    expect(snap1.cached).toBe(false);
-    expect(snap1.targets["mock-target"]).toBeDefined();
+      const snap1 = await probe.check();
+      expect(snap1.cached).toBe(false);
+      expect(snap1.targets["mock-target"]).toBeDefined();
 
-    const snap2 = await probe.check();
-    expect(snap2.cached).toBe(true);
-    expect(snap2.timestamp).toBe(snap1.timestamp);
+      const snap2 = await probe.check();
+      expect(snap2.cached).toBe(true);
+      expect(snap2.timestamp).toBe(snap1.timestamp);
 
-    // Force probe bypasses cache
-    const snap3 = await probe.check(true);
-    expect(snap3.cached).toBe(false);
+      // Force probe bypasses cache
+      const snap3 = await probe.check(true);
+      expect(snap3.cached).toBe(false);
+    } finally {
+      await server.stop(true);
+    }
   });
 
   test("handles unreachable target gracefully and reports DOWN/DEGRADED", async () => {

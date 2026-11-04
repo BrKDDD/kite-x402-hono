@@ -11,7 +11,7 @@ describe("ReceiptStore", () => {
       recipientAddress: "0xProvider",
       amountAtomic: 10_000_000n,
       network: "kite-mainnet",
-      timestampMs: 1000,
+      timestampMs: Date.now() - 2000,
     });
 
     store.saveReceipt({
@@ -21,7 +21,7 @@ describe("ReceiptStore", () => {
       recipientAddress: "0xProvider",
       amountAtomic: 5_000_000n,
       network: "kite-mainnet",
-      timestampMs: 2000,
+      timestampMs: Date.now() - 1000,
     });
 
     expect(store.size()).toBe(2);
@@ -43,7 +43,7 @@ describe("ReceiptStore", () => {
       recipientAddress: "0xS",
       amountAtomic: 100n,
       network: "test",
-      timestampMs: 1,
+      timestampMs: Date.now() - 2999,
     });
     store.saveReceipt({
       txHash: "0x2",
@@ -52,7 +52,7 @@ describe("ReceiptStore", () => {
       recipientAddress: "0xS",
       amountAtomic: 200n,
       network: "test",
-      timestampMs: 2,
+      timestampMs: Date.now() - 2998,
     });
     store.saveReceipt({
       txHash: "0x3",
@@ -61,7 +61,7 @@ describe("ReceiptStore", () => {
       recipientAddress: "0xS",
       amountAtomic: 300n,
       network: "test",
-      timestampMs: 3,
+      timestampMs: Date.now() - 2997,
     });
 
     expect(store.size()).toBe(2);

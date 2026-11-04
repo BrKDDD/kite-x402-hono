@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { ResponseSigner } from "../src/response-signer.js";
 
 describe("ResponseSigner", () => {
-  const secret = "test-super-secret-key-123";
+  const secret = "test-super-secret-key-123-abcdefghijklmnopqrstuvwxyz";
 
   it("signs a response receipt and produces formatted header value", () => {
     const signer = new ResponseSigner({ signingSecret: secret });
@@ -47,7 +47,7 @@ describe("ResponseSigner", () => {
   it("rejects receipt with incorrect signing secret", () => {
     const signerA = new ResponseSigner({ signingSecret: secret });
     const signerB = new ResponseSigner({
-      signingSecret: "different-secret-999",
+      signingSecret: "different-secret-999-abcdefghijklmnopqrstuvwxyz",
     });
     const body = '{"status":"success"}';
     const { receipt } = signerA.signReceipt("0xtx789", "req-001", 200, body);

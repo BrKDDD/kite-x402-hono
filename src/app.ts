@@ -263,18 +263,21 @@ export function createApp(
     config.chain.network,
     new ExactEvmScheme(),
   );
-  const httpServer = new x402HTTPResourceServer(server, {
-    "/v1/*": {
-      accepts: {
-        scheme: "exact",
-        price: parsePrice(config.price, config.chain),
-        network: config.chain.network,
-        payTo: config.payTo,
-        maxTimeoutSeconds: 60,
-      },
-      description: config.description,
-      mimeType: "application/json",
+  const paidRoute = {
+    accepts: {
+      scheme: "exact",
+      price: parsePrice(config.price, config.chain),
+      network: config.chain.network,
+      payTo: config.payTo,
+      maxTimeoutSeconds: 60,
     },
+    description: config.description,
+    mimeType: "application/json",
+  };
+  const httpServer = new x402HTTPResourceServer(server, {
+    "/v1/*": paidRoute,
+    // SDK wildcards exclude OPTIONS; ordinary OPTIONS still requires payment.
+    "OPTIONS /v1/*": paidRoute,
   });
   const payments = paymentMiddlewareFromHTTPServer(
     httpServer,

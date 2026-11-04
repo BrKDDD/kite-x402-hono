@@ -39,6 +39,7 @@ export class WebhookDispatcher {
     try {
       const resp = await fetchFn(endpoint.url, {
         method: "POST",
+        redirect: "error",
         headers: {
           "Content-Type": "application/json",
           "X-Kite-Signature": signature,
@@ -49,6 +50,7 @@ export class WebhookDispatcher {
         signal: controller.signal,
       });
 
+      void resp.body?.cancel().catch(() => {});
       return {
         success: resp.ok,
         status: resp.status,

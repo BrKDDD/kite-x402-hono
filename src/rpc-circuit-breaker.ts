@@ -33,6 +33,13 @@ export class RpcCircuitBreakerManager {
       failureThreshold: config?.failureThreshold ?? 3,
       cooldownPeriodMs: config?.cooldownPeriodMs ?? 30000,
     };
+    if (
+      !Number.isSafeInteger(this.config.failureThreshold) ||
+      this.config.failureThreshold < 1 ||
+      !Number.isFinite(this.config.cooldownPeriodMs) ||
+      this.config.cooldownPeriodMs <= 0
+    )
+      throw new Error("Invalid circuit breaker limits");
   }
 
   public getActiveEndpoint(now: number = Date.now()): string {
@@ -55,8 +62,7 @@ export class RpcCircuitBreakerManager {
       }
     }
 
-    // If all unhealthy, fallback to first endpoint
-    return this.endpoints[0]?.url ?? "";
+    throw new Error("All RPC circuits are open");
   }
 
   public recordSuccess(url: string): void {

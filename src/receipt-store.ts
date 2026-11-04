@@ -26,54 +26,71 @@ export class ReceiptStore {
 
   constructor(config: ReceiptStoreConfig = {}) {
     this.maxEntries = config.maxEntries ?? 5000;
-    this.retentionMs = config.retentionMs ?? 7 * 24 * 60 * 60 * 1000; // 7 days
+    this.retentionMs = config.retentionMs ?? 7 * 24 * 60 * 60 * 1000;
+    if (
+      !Number.isSafeInteger(this.maxEntries) ||
+      this.maxEntries < 1 ||
+      !Number.isFinite(this.retentionMs) ||
+      this.retentionMs <= 0
+    )
+      throw new Error("Invalid receipt limits"); // 7 days
   }
 
   /**
    * Saves a settled payment receipt.
    */
   public saveReceipt(receipt: StoredReceipt): void {
-    const payerKey = receipt.payerAddress.toLowerCase();
-    this.receipts.set(receipt.txHash, {
+    this.cleanup();
+    const key = receipt.txHash.toLowerCase();
+    this.remove(key);
+    const saved = {
       ...receipt,
-      payerAddress: payerKey,
-    });
+      txHash: key,
+      payerAddress: receipt.payerAddress.toLowerCase(),
+    };
+    this.receipts.set(key, saved);
+    const index = this.payerIndex.get(saved.payerAddress) ?? new Set<string>();
+    index.add(key);
+    this.payerIndex.set(saved.payerAddress, index);
+    while (this.receipts.size > this.maxEntries)
+      this.remove(this.receipts.keys().next().value!);
+  }
 
-    if (!this.payerIndex.has(payerKey)) {
-      this.payerIndex.set(payerKey, new Set());
-    }
-    this.payerIndex.get(payerKey)!.add(receipt.txHash);
-
-    // Evict oldest if exceeding capacity
-    if (this.receipts.size > this.maxEntries) {
-      const firstKey = this.receipts.keys().next().value;
-      if (firstKey) {
-        const removed = this.receipts.get(firstKey);
-        if (removed) {
-          this.payerIndex.get(removed.payerAddress)?.delete(firstKey);
-        }
-        this.receipts.delete(firstKey);
-      }
-    }
+  private remove(key: string): void {
+    const old = this.receipts.get(key);
+    if (!old) return;
+    this.receipts.delete(key);
+    const index = this.payerIndex.get(old.payerAddress);
+    index?.delete(key);
+    if (!index?.size) this.payerIndex.delete(old.payerAddress);
+  }
+  private cleanup(): void {
+    for (const [key, receipt] of this.receipts)
+      if (Date.now() - receipt.timestampMs >= this.retentionMs)
+        this.remove(key);
   }
 
   /**
    * Retrieves receipt by on-chain transaction hash.
    */
   public getByTxHash(txHash: string): StoredReceipt | undefined {
-    return this.receipts.get(txHash);
+    this.cleanup();
+    const receipt = this.receipts.get(txHash.toLowerCase());
+    return receipt ? { ...receipt } : undefined;
   }
 
   /**
    * Retrieves all receipts associated with a payer address.
    */
   public getByPayer(payerAddress: string): StoredReceipt[] {
+    this.cleanup();
     const txHashes = this.payerIndex.get(payerAddress.toLowerCase());
     if (!txHashes) return [];
 
     return Array.from(txHashes)
       .map((hash) => this.receipts.get(hash)!)
       .filter(Boolean)
+      .map((r) => ({ ...r }))
       .sort((a, b) => b.timestampMs - a.timestampMs);
   }
 
@@ -86,6 +103,7 @@ export class ReceiptStore {
   }
 
   public size(): number {
+    this.cleanup();
     return this.receipts.size;
   }
 

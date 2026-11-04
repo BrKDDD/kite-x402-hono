@@ -35,6 +35,7 @@ export class PrometheusMetricsExporter {
   }
 
   public incPaymentSettled(amountAtomic: bigint, success: boolean): void {
+    if (amountAtomic < 0n) throw new Error("Negative settled volume");
     if (success) {
       this.paymentsSettled += 1;
       this.settledVolume += amountAtomic;
@@ -44,6 +45,8 @@ export class PrometheusMetricsExporter {
   }
 
   public observeLatency(latencyMs: number): void {
+    if (!Number.isFinite(latencyMs) || latencyMs < 0)
+      throw new Error("Invalid latency");
     this.totalLatencyMs += latencyMs;
     this.latencyObservations += 1;
   }

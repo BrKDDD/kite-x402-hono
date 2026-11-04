@@ -55,7 +55,7 @@ export class IdempotencyCache {
         record.state === "in_flight"
           ? record.expiresAt
           : record.response.expiresAt;
-      if (now >= expiresAt) {
+      if (record.state === "completed" && now >= expiresAt) {
         this.records.delete(key);
       }
     }
@@ -86,16 +86,18 @@ export class IdempotencyCache {
     }
 
     if (this.records.size >= this.maxKeys) {
-      // Evict oldest record
-      const oldestKey = this.records.keys().next().value;
-      if (oldestKey) this.records.delete(oldestKey);
+      const oldestKey = [...this.records].find(
+        ([, record]) => record.state === "completed",
+      )?.[0];
+      if (!oldestKey) return { status: "conflict" };
+      this.records.delete(oldestKey);
     }
 
     this.records.set(key, {
       state: "in_flight",
       fingerprint,
       startedAt: now,
-      expiresAt: now + Math.max(ttlMs, 600000), // 30s timeout for in-flight requests
+      expiresAt: Number.POSITIVE_INFINITY, // Request owner releases the reservation.
     });
 
     return { status: "acquired" };
@@ -144,7 +146,7 @@ export class IdempotencyCache {
       response: {
         statusCode,
         headers: headerEntries,
-        body,
+        body: body.slice(),
         cachedAt: now,
         expiresAt: now + ttlMs,
       },
