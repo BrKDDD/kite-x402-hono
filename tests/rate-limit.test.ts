@@ -59,6 +59,46 @@ test("TokenBucketRateLimiter refills tokens over time", () => {
   expect(res.remaining).toBeGreaterThanOrEqual(3);
 });
 
+test("TokenBucketRateLimiter reclaims refilled buckets when the client limit is reached", () => {
+  const limiter = new TokenBucketRateLimiter({ rps: 1, burst: 1 });
+  for (let i = 0; i < 10000; i++) {
+    expect(limiter.consume(`client-${i}`, 0).allowed).toBe(true);
+  }
+  expect(limiter.size()).toBe(10000);
+  expect(limiter.consume("new-client", 0).allowed).toBe(false);
+
+  expect(limiter.consume("new-client", 1000).allowed).toBe(true);
+  expect(limiter.size()).toBe(1);
+});
+
+test("TokenBucketRateLimiter cleanup preserves partially refilled buckets", () => {
+  const limiter = new TokenBucketRateLimiter({ rps: 1, burst: 3 });
+  for (let i = 0; i < 3; i++) limiter.consume("active-client", 0);
+
+  limiter.consume("another-client", 1000);
+  expect(limiter.size()).toBe(2);
+  expect(limiter.consume("active-client", 1000).remaining).toBe(0);
+  expect(limiter.consume("active-client", 1000).allowed).toBe(false);
+});
+
+test("TokenBucketRateLimiter keeps its capacity bound until idle buckets refill", () => {
+  const limiter = new TokenBucketRateLimiter({ rps: 0.1, burst: 1 });
+  for (let i = 0; i < 10000; i++) limiter.consume(`client-${i}`, 0);
+
+  expect(limiter.consume("new-client", 1000).allowed).toBe(false);
+  expect(limiter.size()).toBe(10000);
+  expect(limiter.consume("new-client", 10000).allowed).toBe(true);
+  expect(limiter.size()).toBe(1);
+});
+
+test("TokenBucketRateLimiter reclaims idle clients below the capacity bound", () => {
+  const limiter = new TokenBucketRateLimiter({ rps: 2, burst: 2 });
+  limiter.consume("old-client", 0);
+  limiter.consume("new-client", 1000);
+  expect(limiter.size()).toBe(1);
+  expect(limiter.consume("old-client", 1000).remaining).toBe(1);
+});
+
 test("Hono middleware sets X-RateLimit headers and throttles exceeding requests", async () => {
   const app = createApp(baseConfig, {
     fetchUpstream: async () => new Response("ok"),

@@ -198,6 +198,7 @@ export class TokenBucketRateLimiter {
   private readonly rps: number;
   private readonly burst: number;
   private readonly buckets = new Map<string, BucketState>();
+  private lastCleanup: number | undefined;
 
   constructor(options: TokenBucketOptions) {
     if (!Number.isFinite(options.rps) || options.rps <= 0) {
@@ -219,6 +220,7 @@ export class TokenBucketRateLimiter {
   }
 
   public consume(key: string, now: number = Date.now()): RateLimitDecision {
+    this.cleanup(now);
     let state = this.buckets.get(key);
     if (!state) {
       if (this.buckets.size >= 10000)
@@ -261,6 +263,21 @@ export class TokenBucketRateLimiter {
       resetSeconds: retryAfter,
       limit: this.rps,
     };
+  }
+
+  private cleanup(now: number): void {
+    // Sweep at most once per second, without a background timer or a scan on every request.
+    if (this.lastCleanup === undefined) {
+      this.lastCleanup = now;
+      return;
+    }
+    if (now - this.lastCleanup < 1000) return;
+    this.lastCleanup = now;
+    for (const [key, state] of this.buckets) {
+      const refilled = ((now - state.lastRefill) / 1000) * this.rps;
+      // A full bucket can be recreated without granting any extra tokens.
+      if (state.tokens + refilled >= this.burst) this.buckets.delete(key);
+    }
   }
 
   public reset(key?: string): void {
