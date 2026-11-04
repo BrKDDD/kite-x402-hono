@@ -38,3 +38,12 @@ export {
   type SettlementQuery,
   type SettlementReceipt,
 } from "./settlement-reconciler.js";
+
+export {
+  TieredFeeScheduler,
+  DEFAULT_FEE_TIERS,
+  type FeeTier,
+  type ClientVolumeRecord,
+  type TierEvaluation,
+  type TieredFeeSchedulerOptions,
+} from "./tiered-fee-scheduler.js";
