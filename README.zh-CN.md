@@ -227,3 +227,5 @@ AI 工具参与了开发；BrK 审核并负责此贡献。项目自己的 Wrappe
 请求 ID 是调用方可控的关联标签，不能用作身份凭证或付款去重键。生成的 UUID 只标记代理响应；非法调用方 ID 不会透传上游。
 仅同时携带 Origin 和 Access-Control-Request-Method 的 OPTIONS 属于免费预检，其他 OPTIONS 仍需付款。
 代理会过滤上游的 CORS 响应头，保持自身来源策略；CORS 不是服务器端鉴权。跨域响应也暴露 X-Request-ID。
+
+客户端 IP 默认取连接地址（`TRUST_PROXY_HEADERS=false`），转发头不会改变直连客户端的身份。仅在入口代理替换转发头时启用 `TRUST_PROXY_HEADERS=true`，建议同时配置 `TRUSTED_PROXY_CIDRS`（逗号分隔的 IP/CIDR）；此时从连接端向前解析代理链，到第一个非可信节点停止。未配置可信列表的兼容模式依赖隔离的入口。缺失或非法转发头回退连接地址；日志、防火墙和限流共用此身份。

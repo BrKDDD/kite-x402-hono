@@ -328,4 +328,8 @@ wrapper/configuration/test work is distinguished from upstream SDK functionality
 
 `/.well-known/x402` is this wrapper's discovery format, not an official x402 discovery schema. Payment challenges remain authoritative. `MAINTENANCE_MODE` is read at startup; restart to change it.
 
-Access logs omit query strings, bodies and payment signatures. `clientIp` is an unverified forwarded-header claim; do not use it for access decisions. JSON is recommended for production.
+Access logs omit query strings, bodies and payment signatures. `clientIp` uses the same resolved identity as the firewall and rate limiter. JSON is recommended for production.
+
+### Client IP and reverse proxies
+
+Socket peer addresses are used by default (`TRUST_PROXY_HEADERS=false`). Direct clients cannot change their identity with forwarding headers. Enable `TRUST_PROXY_HEADERS=true` only behind an ingress that replaces inbound forwarding headers. Set `TRUSTED_PROXY_CIDRS` (comma-separated IPs or CIDRs) to restrict trusted peers; X-Forwarded-For is then read from right to left until the first untrusted hop. Without that list, the explicit legacy flag trusts forwarding claims and requires an isolated ingress. Missing or malformed claims fall back to the socket peer. Programmatic callers can provide `AppOptions.clientIp`; otherwise they must pass the socket peer as `c.env.clientIp`.

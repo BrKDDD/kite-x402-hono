@@ -133,6 +133,7 @@ describe("Firewall Integration Tests with Hono app", () => {
   test("allows requests when IP is within allowlist", async () => {
     const { app } = harness({
       env: {
+        TRUST_PROXY_HEADERS: "true",
         FIREWALL_ALLOWLIST: "192.168.1.0/24, 10.0.0.1",
       },
       upstream: async () => Response.json({ status: "ok" }),
@@ -151,6 +152,7 @@ describe("Firewall Integration Tests with Hono app", () => {
   test("blocks requests when IP is not in allowlist with 403 Forbidden", async () => {
     const { app } = harness({
       env: {
+        TRUST_PROXY_HEADERS: "true",
         FIREWALL_ALLOWLIST: "192.168.1.0/24",
       },
     });
@@ -174,6 +176,7 @@ describe("Firewall Integration Tests with Hono app", () => {
   test("blocks requests when IP is in blocklist with 403 Forbidden", async () => {
     const { app } = harness({
       env: {
+        TRUST_PROXY_HEADERS: "true",
         FIREWALL_BLOCKLIST: "203.0.113.0/24",
       },
     });
@@ -191,9 +194,7 @@ describe("Firewall Integration Tests with Hono app", () => {
 
   test("healthz and metrics bypass IP firewall", async () => {
     const { app } = harness({
-      env: {
-        FIREWALL_ALLOWLIST: "10.0.0.0/8",
-      },
+      env: { TRUST_PROXY_HEADERS: "true", FIREWALL_ALLOWLIST: "10.0.0.0/8" },
     });
 
     const healthRes = await app.request("/healthz", {
