@@ -53,3 +53,9 @@ export {
   type ResponseReceipt,
   type ResponseSignerOptions,
 } from "./response-signer.js";
+
+export {
+  ReceiptStore,
+  type StoredReceipt,
+  type ReceiptStoreConfig,
+} from "./receipt-store.js";
