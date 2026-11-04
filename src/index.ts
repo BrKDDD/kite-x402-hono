@@ -31,3 +31,10 @@ export {
   type ReadinessSnapshot,
   type TargetHealth,
 } from "./readiness-probe.js";
+
+export {
+  SettlementReconciler,
+  type ReconcilerSummary,
+  type SettlementQuery,
+  type SettlementReceipt,
+} from "./settlement-reconciler.js";
