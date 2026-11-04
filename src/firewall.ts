@@ -1,3 +1,5 @@
+import { BlockList, isIP } from "node:net";
+
 export interface IpFilterConfig {
   allowlist?: string[] | undefined;
   blocklist?: string[] | undefined;
@@ -13,10 +15,34 @@ export interface IpFilterVerdict {
  */
 export function parseIpList(raw: string | undefined | null): string[] {
   if (!raw) return [];
-  return raw
+  const rules = raw
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+  for (const rule of rules) {
+    if (!parseRule(rule))
+      throw new Error(`Invalid firewall IP or CIDR: ${rule}`);
+  }
+  return rules;
+}
+
+function parseRule(
+  rule: string,
+): { address: string; family: "ipv4" | "ipv6"; prefix?: number } | null {
+  const [address, prefix, extra] = rule.trim().split("/");
+  const version = address ? isIP(address) : 0;
+  if (
+    !version ||
+    extra !== undefined ||
+    (prefix !== undefined &&
+      (!/^\d+$/.test(prefix) || Number(prefix) > (version === 4 ? 32 : 128)))
+  )
+    return null;
+  return {
+    address: address!,
+    family: version === 4 ? "ipv4" : "ipv6",
+    ...(prefix === undefined ? {} : { prefix: Number(prefix) }),
+  };
 }
 
 /**
@@ -44,7 +70,7 @@ export function matchIpv4Cidr(ip: string, rule: string): boolean {
   const subnet = parts[0];
   const prefixStr = parts[1];
 
-  if (!subnet) return false;
+  if (!subnet || !parseRule(rule) || isIP(subnet) !== 4) return false;
   const ipNum = ipv4ToNumber(ip);
   const subnetNum = ipv4ToNumber(subnet);
 
@@ -67,23 +93,18 @@ export function matchIpv4Cidr(ip: string, rule: string): boolean {
 }
 
 /**
- * Checks whether an IP matches a single rule (supports IPv4 and basic IPv6 match).
+ * Matches IPv4, IPv6 and mapped addresses using the same parser on both sides.
  */
 export function matchesIpRule(clientIp: string, rule: string): boolean {
-  const normalizedClient = clientIp.trim().toLowerCase();
-  const normalizedRule = rule.trim().toLowerCase();
-
-  // Handle IPv6 / localhost
-  if (normalizedClient === "::1" || normalizedRule === "::1") {
-    return normalizedClient === normalizedRule;
-  }
-
-  // IPv4 or IPv4-mapped IPv6 (e.g. ::ffff:192.168.1.1)
-  const cleanIp = normalizedClient.startsWith("::ffff:")
-    ? normalizedClient.slice(7)
-    : normalizedClient;
-
-  return matchIpv4Cidr(cleanIp, normalizedRule);
+  const client = clientIp.trim();
+  const family = isIP(client);
+  const parsed = parseRule(rule);
+  if (!family || !parsed) return false;
+  const list = new BlockList();
+  if (parsed.prefix === undefined)
+    list.addAddress(parsed.address, parsed.family);
+  else list.addSubnet(parsed.address, parsed.prefix, parsed.family);
+  return list.check(client, family === 4 ? "ipv4" : "ipv6");
 }
 
 /**
@@ -98,7 +119,7 @@ export function evaluateIpFilter(
   }
 
   const cleanIp = clientIp.trim();
-  if (cleanIp.length === 0) {
+  if (!isIP(cleanIp)) {
     return { allowed: false, reason: "invalid_ip" };
   }
 

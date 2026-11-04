@@ -218,6 +218,8 @@ for upstream capacity and response sizes; use edge rate limits for hostile traff
 Do not treat every 503 as safe to retry: only this wrapper's `service_busy`
 response denotes pre-payment rejection. Settlement errors still need reconciliation.
 
+Firewall allow/block lists accept IPv4, IPv6 and CIDR rules. Compressed IPv6 and IPv4-mapped addresses are normalized by the platform IP parser on both sides. Invalid rules fail configuration; invalid client identities are denied when filtering is enabled. Block rules take priority over allow rules.
+
 ### Rate limiting (added in 0.3.3)
 
 `RATE_LIMIT_RPS` and `RATE_LIMIT_BURST` provide built-in in-memory token-bucket request throttling:
