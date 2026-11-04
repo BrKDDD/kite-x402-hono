@@ -59,3 +59,8 @@ export {
   type StoredReceipt,
   type ReceiptStoreConfig,
 } from "./receipt-store.js";
+
+export {
+  PrometheusMetricsExporter,
+  type MetricsSnapshot,
+} from "./prometheus-metrics.js";
