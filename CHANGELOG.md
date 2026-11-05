@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - Integrate and review community PRs #22, #24, #28–#29, #31, #33–#51.
 - Isolate paid idempotent retries; keep active reservations and nonce leases owner-bound; default to socket IP identity and validate IPv6 firewall rules.
