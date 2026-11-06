@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Integrate reviewed PRs #52–#61, including fee snapshot isolation, atomic response cache updates, and per-network settlement reconciliation.
 - Export optional readiness snapshots, origin validators, bounded JWT revocations, settlement notifications, trusted-identity sliding-window middleware, and HMAC verification.
