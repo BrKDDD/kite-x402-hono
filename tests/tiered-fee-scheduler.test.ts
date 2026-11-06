@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, spyOn } from "bun:test";
 import {
   TieredFeeScheduler,
   DEFAULT_FEE_TIERS,
@@ -54,14 +54,15 @@ describe("TieredFeeScheduler", () => {
     expect(evalResult.tierName).toBe("Partner");
     expect(evalResult.discountBps).toBe(2000);
 
-    // Simulate epoch expiration
-    const record = scheduler.getClientRecord("0xPartner1");
-    if (record) {
-      record.lastUpdatedMs = Date.now() - 50; // Expired
+    // Expire via time, rather than mutating the public record snapshot.
+    const now = Date.now();
+    const clock = spyOn(Date, "now").mockReturnValue(now + 50);
+    try {
+      evalResult = scheduler.calculateFee("0xPartner1", 1_000_000n);
+      expect(evalResult.tierName).toBe("Normal");
+      expect(evalResult.discountBps).toBe(0);
+    } finally {
+      clock.mockRestore();
     }
-
-    evalResult = scheduler.calculateFee("0xPartner1", 1_000_000n);
-    expect(evalResult.tierName).toBe("Normal");
-    expect(evalResult.discountBps).toBe(0);
   });
 });

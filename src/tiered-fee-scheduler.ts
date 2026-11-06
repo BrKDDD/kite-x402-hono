@@ -58,9 +58,11 @@ export class TieredFeeScheduler {
       )
         throw new Error("Invalid fee tier");
     // Sort descending by minCumulativeVolumeAtomic for waterfall evaluation
-    this.tiers = [...unsortedTiers].sort((a, b) =>
-      b.minCumulativeVolumeAtomic > a.minCumulativeVolumeAtomic ? 1 : -1,
-    );
+    this.tiers = unsortedTiers
+      .map((tier) => ({ ...tier }))
+      .sort((a, b) =>
+        b.minCumulativeVolumeAtomic > a.minCumulativeVolumeAtomic ? 1 : -1,
+      );
   }
 
   /**
@@ -95,7 +97,7 @@ export class TieredFeeScheduler {
     }
 
     this.clientVolumes.set(key, record);
-    return record;
+    return { ...record };
   }
 
   /**
@@ -150,7 +152,8 @@ export class TieredFeeScheduler {
   public getClientRecord(
     clientAddress: string,
   ): ClientVolumeRecord | undefined {
-    return this.clientVolumes.get(clientAddress.toLowerCase());
+    const record = this.clientVolumes.get(clientAddress.toLowerCase());
+    return record ? { ...record } : undefined;
   }
 
   /**
