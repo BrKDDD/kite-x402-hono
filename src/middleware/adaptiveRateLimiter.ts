@@ -1,46 +1,38 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from "hono";
+import { SlidingWindowLimiter } from "./sliding-window-limiter.js";
 
-export interface RateLimiterOptions {
+export interface AdaptiveRateLimiterOptions {
   windowMs?: number;
   maxRequests?: number;
-  keyGenerator?: (c: any) => string;
+  /** Resolve a verified identity or trusted socket IP; forwarding headers are untrusted. */
+  keyGenerator: (c: Context) => string;
 }
 
-export function adaptiveRateLimiter(options: RateLimiterOptions = {}): MiddlewareHandler {
-  const windowMs = options.windowMs || 60000;
-  const maxRequests = options.maxRequests || 120;
-  const hitLog = new Map<string, number[]>();
-
+/** Fixed-budget sliding window middleware (does not dynamically adapt budgets). */
+export function adaptiveRateLimiter(
+  options: AdaptiveRateLimiterOptions,
+): MiddlewareHandler {
+  if (typeof options?.keyGenerator !== "function")
+    throw new Error("A trusted keyGenerator is required");
+  const windowMs = options.windowMs ?? 60000;
+  const maxRequests = options.maxRequests ?? 120;
+  const limiter = new SlidingWindowLimiter(windowMs, maxRequests);
   return async (c, next) => {
-    const now = Date.now();
-    const clientKey = options.keyGenerator
-      ? options.keyGenerator(c)
-      : c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || 'anonymous-client';
-
-    let timestamps = hitLog.get(clientKey) || [];
-    timestamps = timestamps.filter((t) => now - t < windowMs);
-
-    if (timestamps.length >= maxRequests) {
-      c.header('X-RateLimit-Limit', maxRequests.toString());
-      c.header('X-RateLimit-Remaining', '0');
-      c.header('X-RateLimit-Reset', Math.ceil((now + windowMs) / 1000).toString());
-      return c.json(
-        {
-          error: 'Too Many Requests',
-          message: `Exceeded request budget of ${maxRequests} requests per ${windowMs / 1000}s`,
-        },
-        429
+    const key = options.keyGenerator(c);
+    if (typeof key !== "string" || !key || key.length > 512)
+      return c.json({ error: "Missing trusted client identity" }, 503);
+    const result = limiter.check(key);
+    c.header("X-RateLimit-Limit", String(maxRequests));
+    c.header("X-RateLimit-Remaining", String(result.remaining));
+    if (!result.allowed) {
+      c.header("Retry-After", String(result.resetSeconds));
+      c.header(
+        "X-RateLimit-Reset",
+        String(Math.ceil(Date.now() / 1000) + result.resetSeconds),
       );
+      return c.json({ error: "Too Many Requests" }, 429);
     }
-
-    timestamps.push(now);
-    hitLog.set(clientKey, timestamps);
-
-    c.header('X-RateLimit-Limit', maxRequests.toString());
-    c.header('X-RateLimit-Remaining', (maxRequests - timestamps.length).toString());
-
     await next();
   };
 }
-
 export default adaptiveRateLimiter;

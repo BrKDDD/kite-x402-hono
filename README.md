@@ -341,3 +341,5 @@ Socket peer addresses are used by default (`TRUST_PROXY_HEADERS=false`). Direct 
 ### Community component review
 
 The next release includes optional library components and security corrections described in [the PR review report](docs/pr-review-2026-11-04.md). Utilities require explicit integration; adding a helper does not automatically enable dynamic prices, cached payment authorization, webhooks, sessions, distributed limiting or response compression. Forwarded client IP headers are disabled by default; configure trusted proxies explicitly when deploying behind an ingress.
+
+Review and integration contracts for PRs #52–#61: [November review](docs/pr-review-2026-11-06.md). New utilities require explicit integration.

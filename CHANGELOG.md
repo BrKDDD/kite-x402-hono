@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Integrate reviewed PRs #52–#61, including fee snapshot isolation, atomic response cache updates, and per-network settlement reconciliation.
+- Export optional readiness snapshots, origin validators, bounded JWT revocations, settlement notifications, trusted-identity sliding-window middleware, and HMAC verification.
+- Repair mutable snapshots, stateful origin regex matching, unbounded revocations, unsafe event amounts, spoofable limiter keys, and unsigned webhook timestamps. See docs/pr-review-2026-11-06.md for API contracts and integration limits.
+
 ## 0.4.0
 
 - Integrate and review community PRs #22, #24, #28–#29, #31, #33–#51.
