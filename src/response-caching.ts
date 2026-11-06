@@ -65,24 +65,29 @@ export class ResponseCacheStore {
   ): CachedResponseEntry {
     if (Buffer.byteLength(body) > 1024 * 1024)
       throw new Error("Cached response exceeds 1 MiB");
-    for (const [id, entry] of this.cache)
-      if (entry.expiresAt <= Date.now()) this.cache.delete(id);
-    this.cache.delete(key);
-    const bytes = [...this.cache.values()].reduce(
-      (n, e) => n + Buffer.byteLength(e.body),
+    const ttlMs =
+      ttlSeconds === undefined ? this.defaultTtlMs : ttlSeconds * 1000;
+    const now = Date.now();
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isFinite(now + ttlMs))
+      throw new Error("Invalid cache TTL");
+
+    // Stage the replacement: validation failures must not remove live entries.
+    const next = new Map(
+      [...this.cache].filter(
+        ([id, entry]) => id !== key && entry.expiresAt > now,
+      ),
+    );
+    if (next.size >= this.maxEntries) {
+      const oldest = next.keys().next().value;
+      if (oldest !== undefined) next.delete(oldest);
+    }
+    const bytes = [...next.values()].reduce(
+      (n, entry) => n + Buffer.byteLength(entry.body),
       0,
     );
     if (bytes + Buffer.byteLength(body) > 32 * 1024 * 1024)
       throw new Error("Response cache exceeds 32 MiB");
-    if (this.cache.size >= this.maxEntries) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey) this.cache.delete(oldestKey);
-    }
 
-    const ttlMs =
-      ttlSeconds === undefined ? this.defaultTtlMs : ttlSeconds * 1000;
-    if (!Number.isFinite(ttlMs) || ttlMs <= 0)
-      throw new Error("Invalid cache TTL");
     const etag = this.generateEtag(body);
     const entry: CachedResponseEntry = {
       body,
@@ -97,11 +102,12 @@ export class ResponseCacheStore {
         "Cache-Control": "private, no-store",
       },
       etag,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + ttlMs,
+      createdAt: now,
+      expiresAt: now + ttlMs,
     };
 
-    this.cache.set(key, entry);
+    next.set(key, entry);
+    this.cache = next;
     return structuredClone(entry);
   }
 
