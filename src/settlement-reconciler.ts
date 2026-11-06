@@ -33,17 +33,26 @@ export class SettlementReconciler {
   private receiptsByPayer: Map<string, SettlementReceipt[]> = new Map();
   private orderedTxHashes: string[] = [];
   private readonly maxCapacity: number;
+  private network: string | undefined;
 
-  constructor(maxCapacity: number = 5_000) {
+  constructor(maxCapacity: number = 5_000, network?: string) {
     if (!Number.isSafeInteger(maxCapacity) || maxCapacity < 1)
       throw new Error("Invalid receipt capacity");
+    if (network !== undefined && (!network || network.trim() !== network))
+      throw new Error("Invalid settlement network");
     this.maxCapacity = maxCapacity;
+    this.network = network;
   }
 
   record(receipt: SettlementReceipt): void {
     if (!receipt.txHash) {
       throw new Error("Missing transaction hash in settlement receipt");
     }
+
+    if (!receipt.network || receipt.network.trim() !== receipt.network)
+      throw new Error("Invalid settlement network");
+    if (this.network !== undefined && receipt.network !== this.network)
+      throw new Error("Settlement network does not match this reconciler");
 
     const txKey = receipt.txHash.toLowerCase();
     const payerKey = receipt.payer.toLowerCase();
@@ -72,6 +81,7 @@ export class SettlementReconciler {
       }
     }
 
+    this.network ??= receipt.network;
     this.receiptsByTx.set(txKey, receipt);
     this.orderedTxHashes.push(txKey);
 
@@ -141,6 +151,7 @@ export class SettlementReconciler {
     return this.receiptsByTx.size;
   }
 
+  /** The network binding survives clear; use a new instance for another network. */
   clear(): void {
     this.receiptsByTx.clear();
     this.receiptsByPayer.clear();
