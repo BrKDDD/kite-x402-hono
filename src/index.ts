@@ -98,3 +98,5 @@ export * from "./middleware/token-blacklist.js";
 export * from "./events/settlement-bus.js";
 export * from "./middleware/adaptiveRateLimiter.js";
 export * from "./utils/hmacSignatureVerifier.js";
+
+export * from "./middleware/structuredErrorLogger.js";

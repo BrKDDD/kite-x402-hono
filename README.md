@@ -343,3 +343,17 @@ Socket peer addresses are used by default (`TRUST_PROXY_HEADERS=false`). Direct 
 The next release includes optional library components and security corrections described in [the PR review report](docs/pr-review-2026-11-04.md). Utilities require explicit integration; adding a helper does not automatically enable dynamic prices, cached payment authorization, webhooks, sessions, distributed limiting or response compression. Forwarded client IP headers are disabled by default; configure trusted proxies explicitly when deploying behind an ingress.
 
 Review and integration contracts for PRs #52–#61: [November review](docs/pr-review-2026-11-06.md). New utilities require explicit integration.
+
+### Optional structured error handler
+
+```ts
+import { Hono } from "hono";
+import { structuredErrorLogger } from "kite-x402-hono";
+
+const app = new Hono();
+app.onError(structuredErrorLogger({ sink: (line) => console.error(line) }));
+```
+
+Register with `app.onError`, not `app.use`: Hono handles route exceptions internally before `next()` returns. This opt-in handler replaces the application's previous error handler. Every caught exception becomes a generic HTTP 500, including thrown HTTP exceptions; return deliberate business responses normally or compose a separate error policy. Existing `createApp()` behavior is unchanged unless you replace its handler explicitly.
+
+Valid incoming `X-Request-ID` values are reused; missing/invalid IDs receive a UUID. IDs are correlation labels, not trusted identities. The response contains `{ error: "internal_error", requestId }` and `Cache-Control: no-store`. Logs are JSON; raw error messages are omitted by default. `includeStack: true` includes stacks only in server logs, which may then contain secrets. This handler does not emit `X-Trace-ID`. A custom outer request-ID middleware should preserve the response ID instead of replacing it.

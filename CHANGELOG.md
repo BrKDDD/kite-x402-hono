@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Review PR #62: export a structured JSON error handler for explicit `app.onError` registration, with validated request IDs, generic no-store 500 responses, optional server-only stacks, and isolated logging failures.
+
 ## 0.5.0
 
 - Integrate reviewed PRs #52–#61, including fee snapshot isolation, atomic response cache updates, and per-network settlement reconciliation.
