@@ -245,3 +245,9 @@ PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-revi
 通过 `app.onError(structuredErrorLogger({ sink: console.error }))` 显式注册；不要使用 `app.use`，因为 Hono 会先处理路由异常。该工具从包根目录导出，注册会替换原有异常处理器，所有捕获异常统一返回 500（包括抛出的 HTTP 异常）；业务响应应正常返回，或另行组合异常策略。默认 `createApp()` 行为保持不变。
 
 响应为 `{ error: "internal_error", requestId }`，禁止缓存。沿用经过校验的 `X-Request-ID`，缺失或非法时生成 UUID；不再新增 `X-Trace-ID`。服务端输出 JSON 日志，默认不记录原始异常消息。`includeStack: true` 仅在服务端日志中加入堆栈，日志可能因此包含敏感信息。外层自定义请求 ID 中间件应保留错误响应已有的 ID。
+
+### 可选回执缓存与 CORS 白名单
+
+`ReceiptMemoryCache` 提供毫秒 TTL 和 LRU 淘汰，读取及 has 查询都会更新访问顺序，输入输出均隔离复制。金额支持 uint256 范围的 bigint、十进制整数字符串或安全整数。它只保存调用者已经验证的回执，不提供支付验证、持久化防重放或自动跨链隔离；不同链和资产应使用独立实例或明确隔离的键。索引查询和对账可使用已有 ReceiptStore、SettlementReconciler。
+
+`corsAllowlistValidator({ allowedDomains, credentials: false })` 需要显式接入并替换其他 CORS 中间件。字符串匹配完整 HTTP(S) origin，正则必须匹配整个 origin；凭证需要显式开启。仅合法浏览器预检返回 204，拒绝的预检返回 403，普通 OPTIONS 继续进入支付处理。支持 Payment-Signature、Idempotency-Key 并暴露支付响应头。CORS 不提供身份认证。两项工具均不会由 createApp 自动启用。

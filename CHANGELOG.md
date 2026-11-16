@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Review PRs #63–#64: export validated, copy-isolated LRU receipt storage and an opt-in CORS allowlist with full-origin matching and strict preflight checks. Ordinary OPTIONS still reaches payment handling.
+
 ## 0.6.0
 
 - Review PR #62: export a structured JSON error handler for explicit `app.onError` registration, with validated request IDs, generic no-store 500 responses, optional server-only stacks, and isolated logging failures.

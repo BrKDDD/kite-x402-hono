@@ -100,3 +100,6 @@ export * from "./middleware/adaptiveRateLimiter.js";
 export * from "./utils/hmacSignatureVerifier.js";
 
 export * from "./middleware/structuredErrorLogger.js";
+
+export * from "./services/receiptMemoryCache.js";
+export * from "./middleware/corsAllowlistValidator.js";
