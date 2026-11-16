@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - Review PRs #63–#64: export validated, copy-isolated LRU receipt storage and an opt-in CORS allowlist with full-origin matching and strict preflight checks. Ordinary OPTIONS still reaches payment handling.
 
