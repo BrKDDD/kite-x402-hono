@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Fix `PaymentNonceReplayGuard.commit()` dropping a settled nonce at the entry
+  cap: records that lapsed between acquisition and settlement could occupy the cap
+  and make a consumed nonce report `AVAILABLE` afterwards. Both `commit()` and
+  `acquire()` now reclaim expired records before acting on an entry count.
+- Bound the cost of nonce replay protection: expired records are swept at most
+  once per `sweepIntervalMs` (default 1000 ms) instead of on every acquisition.
+  Measured 113.7 µs → 0.5 µs per `reserve()` with 10,000 retained nonces. Replay
+  decisions are unchanged; `sweepIntervalMs: 0` preserves the previous behaviour
+  and `sweepCount` exposes the number of scheduled sweeps. See
+  docs/nonce-guard-sweep.md.
+
 ## 0.7.0
 
 - Review PRs #63–#64: export validated, copy-isolated LRU receipt storage and an opt-in CORS allowlist with full-origin matching and strict preflight checks. Ordinary OPTIONS still reaches payment handling.
