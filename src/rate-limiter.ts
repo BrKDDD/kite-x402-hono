@@ -121,14 +121,22 @@ export class AdaptiveRateLimiter {
   }
 
   /**
-   * Purges buckets that haven't been accessed for more than the cleanup interval.
+   * Purges idle buckets only when their tokens have fully replenished.
    */
   private maybeCleanup(nowMs: number): void {
     if (nowMs - this.lastCleanupMs < this.cleanupIntervalMs) return;
     this.lastCleanupMs = nowMs;
     const staleThreshold = nowMs - this.cleanupIntervalMs;
     for (const [key, bucket] of this.buckets.entries()) {
-      if (bucket.lastAccessMs < staleThreshold) {
+      const refilledTokens =
+        bucket.tokens +
+        (Math.max(0, nowMs - bucket.lastRefillMs) / 1000) *
+          this.refillRatePerSec;
+      // Recreating a partially refilled bucket would grant an unearned burst.
+      if (
+        bucket.lastAccessMs < staleThreshold &&
+        refilledTokens >= this.capacity
+      ) {
         this.buckets.delete(key);
       }
     }
