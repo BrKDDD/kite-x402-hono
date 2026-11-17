@@ -34,6 +34,21 @@ export class IdempotencyCache {
   private defaultTtlMs: number;
   private maxKeys: number;
   private maxBytes: number;
+  /**
+   * Keys of completed records, oldest completion first.
+   *
+   * The capacities this cache serves sit on the paid request path, so eviction
+   * cannot afford to materialise every record to find one that is evictable.
+   * Keeping this index makes that lookup the first element of a Set.
+   */
+  private completedKeys = new Set<string>();
+  /**
+   * Body bytes accounted to completed records.
+   *
+   * Maintained incrementally so `complete()` does not have to sum the cache on
+   * every paid response. The invariant is checked by `bytes()`.
+   */
+  private cachedBytes = 0;
 
   constructor(options: IdempotencyCacheOptions = {}) {
     this.defaultTtlMs = options.ttlMs ?? 10 * 60 * 1000; // 10 minutes default
@@ -49,15 +64,32 @@ export class IdempotencyCache {
     return IDEMPOTENCY_KEY_PATTERN.test(key);
   }
 
+  /**
+   * Body bytes currently held by completed records.
+   *
+   * Exposed so the incremental accounting above is observable, and so a caller
+   * can size `maxBytes` against real traffic instead of guessing.
+   */
+  public bytes(): number {
+    return this.cachedBytes;
+  }
+
   public cleanExpired(now = Date.now()): void {
     for (const [key, record] of this.records.entries()) {
-      const expiresAt =
-        record.state === "in_flight"
-          ? record.expiresAt
-          : record.response.expiresAt;
-      if (record.state === "completed" && now >= expiresAt) {
-        this.records.delete(key);
+      if (record.state === "completed" && now >= record.response.expiresAt) {
+        this.drop(key);
       }
+    }
+  }
+
+  /** Removes one record and releases whatever it accounted for. */
+  private drop(key: string): void {
+    const record = this.records.get(key);
+    if (!record) return;
+    this.records.delete(key);
+    if (record.state === "completed") {
+      this.cachedBytes -= record.response.body.byteLength;
+      this.completedKeys.delete(key);
     }
   }
 
@@ -72,25 +104,36 @@ export class IdempotencyCache {
     | { status: "conflict" }
     | { status: "in_flight" }
     | { status: "cached"; response: CachedResponse } {
-    this.cleanExpired(now);
-
     const existing = this.records.get(key);
     if (existing) {
-      if (existing.fingerprint !== fingerprint) {
-        return { status: "conflict" };
+      // Expiry is decided for this key alone, so an acquisition never pays for a
+      // scan of the whole cache. In-flight reservations carry an infinite expiry
+      // and are released by their owner, so they are never dropped here.
+      if (
+        existing.state === "completed" &&
+        now >= existing.response.expiresAt
+      ) {
+        this.drop(key);
+      } else {
+        if (existing.fingerprint !== fingerprint) {
+          return { status: "conflict" };
+        }
+        if (existing.state === "in_flight") {
+          return { status: "in_flight" };
+        }
+        return { status: "cached", response: existing.response };
       }
-      if (existing.state === "in_flight") {
-        return { status: "in_flight" };
-      }
-      return { status: "cached", response: existing.response };
     }
 
     if (this.records.size >= this.maxKeys) {
-      const oldestKey = [...this.records].find(
-        ([, record]) => record.state === "completed",
-      )?.[0];
-      if (!oldestKey) return { status: "conflict" };
-      this.records.delete(oldestKey);
+      // Eviction needs no scan. Only completed records can be evictable (in-flight
+      // reservations are held by their owner), and a lapsed record is completed
+      // too, so the oldest completion is also the first candidate to reclaim.
+      const oldestKey = this.completedKeys.values().next().value;
+      // A full cache of live reservations is a conflict, not a licence to
+      // discard work another request is still holding.
+      if (oldestKey === undefined) return { status: "conflict" };
+      this.drop(oldestKey);
     }
 
     this.records.set(key, {
@@ -113,14 +156,13 @@ export class IdempotencyCache {
   ): void {
     const record = this.records.get(key);
     if (!record) return;
-    const used = [...this.records.entries()].reduce(
-      (n, [k, r]) =>
-        n +
-        (k !== key && r.state === "completed" ? r.response.body.byteLength : 0),
-      0,
-    );
-    if (used + body.byteLength > this.maxBytes) {
-      this.records.delete(key);
+    const bodyBytes = body.byteLength;
+    // Replacing a completed record removes its body from the budget first, which
+    // is what the previous accounting did by excluding the current key from the sum.
+    const previous = record.state === "completed" ? record : undefined;
+    const replacedBytes = previous?.response.body.byteLength ?? 0;
+    if (this.cachedBytes - replacedBytes + bodyBytes > this.maxBytes) {
+      this.drop(key);
       return;
     }
     const headerEntries: [string, string][] = [];
@@ -140,6 +182,7 @@ export class IdempotencyCache {
       }
     });
 
+    if (previous) this.drop(key);
     this.records.set(key, {
       state: "completed",
       fingerprint: record.fingerprint,
@@ -151,12 +194,14 @@ export class IdempotencyCache {
         expiresAt: now + ttlMs,
       },
     });
+    this.cachedBytes += bodyBytes;
+    this.completedKeys.add(key);
   }
 
   public release(key: string): void {
     const existing = this.records.get(key);
     if (existing && existing.state === "in_flight") {
-      this.records.delete(key);
+      this.drop(key);
     }
   }
 
@@ -166,5 +211,7 @@ export class IdempotencyCache {
 
   public clear(): void {
     this.records.clear();
+    this.completedKeys.clear();
+    this.cachedBytes = 0;
   }
 }
