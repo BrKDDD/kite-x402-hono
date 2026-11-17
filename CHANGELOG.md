@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Fix `SettlementReconciler` silently under-reporting settled volume: a
+  fractional `number`, a decimal `string` or an integer beyond
+  `Number.MAX_SAFE_INTEGER` was accepted by `record()` and then skipped by
+  `getSummary()`, so `successfulSettlements` and `totalSettledAmount` disagreed.
+  `record()` now rejects an unrepresentable amount with `Invalid settlement amount`
+  and the total is summed from a value parsed on entry. Stored receipts expose the
+  parsed form as `amountAtomic`. See docs/settlement-amount-integrity.md.
+- Extract the atomic-amount rule into `tryParseAtomicAmount` (exported) and apply
+  it in `ReceiptMemoryCache` as well, so the package has one definition instead of
+  two that disagree.
+
 ## 0.7.0
 
 - Review PRs #63–#64: export validated, copy-isolated LRU receipt storage and an opt-in CORS allowlist with full-origin matching and strict preflight checks. Ordinary OPTIONS still reaches payment handling.
