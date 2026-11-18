@@ -104,6 +104,7 @@ export async function proxy(
   request: Request,
   config: Config,
   fetchUpstream: FetchUpstream,
+  onRequestTooLarge?: () => void,
 ): Promise<Response> {
   const incoming = new URL(request.url);
   // Assign pathname rather than resolving user input: //host must never replace the configured origin.
@@ -138,15 +139,11 @@ export async function proxy(
         { error: "request_timeout_or_abort" },
         { status: 408 },
       );
-    return Response.json(
-      {
-        error:
-          error instanceof BodyTooLarge
-            ? "request_too_large"
-            : "invalid_request_body",
-      },
-      { status: error instanceof BodyTooLarge ? 413 : 400 },
-    );
+    if (error instanceof BodyTooLarge) {
+      onRequestTooLarge?.();
+      return Response.json({ error: "request_too_large" }, { status: 413 });
+    }
+    return Response.json({ error: "invalid_request_body" }, { status: 400 });
   } finally {
     clearTimeout(bodyTimer);
     request.signal.removeEventListener("abort", onBodyAbort);
