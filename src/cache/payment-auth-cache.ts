@@ -39,7 +39,8 @@ export class PaymentAuthCache {
     this.cache.delete(paymentKey);
     if (this.cache.size >= this.maxEntries) {
       const oldestKey = this.cache.keys().next().value;
-      if (oldestKey) this.cache.delete(oldestKey);
+      // 空字符串也是有效缓存键，只有 undefined 表示迭代器中没有可淘汰项。
+      if (oldestKey !== undefined) this.cache.delete(oldestKey);
     }
 
     const now = Date.now();
