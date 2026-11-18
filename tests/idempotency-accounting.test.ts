@@ -76,17 +76,21 @@ test("expiry releases the body budget", () => {
   expect(cache.bytes()).toBe(0);
 });
 
-test("acquiring past the TTL releases the entry without sweeping the cache", () => {
+test("acquiring past a deadline reclaims lapsed completed records, not just the target", () => {
   const cache = new IdempotencyCache();
   const now = 1_000_000;
-  cache.acquire("stale", 500, now);
-  cache.complete("stale", 200, headers, body(64), 500, now);
-  cache.acquire("live", 500, now);
-  cache.complete("live", 200, headers, body(32), 500, now);
+  cache.acquire("stale-a", 500, now);
+  cache.complete("stale-a", 200, headers, body(64), 500, now);
+  cache.acquire("stale-b", 500, now);
+  cache.complete("stale-b", 200, headers, body(32), 500, now);
+  cache.acquire("live", 1_000, now);
+  cache.complete("live", 200, headers, body(16), 1_000, now);
+  expect(cache.bytes()).toBe(112);
 
-  // Only the expired key is reclaimed; the other completed record is untouched.
-  expect(cache.acquire("stale", 500, now + 500).status).toBe("acquired");
-  expect(cache.bytes()).toBe(32);
+  // The expiry heap yields both lapsed records before the admission decision,
+  // matching the previous full sweep without walking the live record.
+  expect(cache.acquire("stale-a", 500, now + 500).status).toBe("acquired");
+  expect(cache.bytes()).toBe(16);
   expect(cache.size()).toBe(2);
 });
 
@@ -144,9 +148,42 @@ test("accounting survives a mixed sequence", () => {
 
   expect(cache.bytes()).toBe(30);
 
-  // Both completed records lapse; each acquisition reclaims only its own key.
+  // Both completed records lapse at once; the first acquisition reclaims both
+  // through the expiry heap, so neither stale body remains in the budget.
   expect(cache.acquire("a", 100, now + 100).status).toBe("acquired");
-  expect(cache.bytes()).toBe(20);
+  expect(cache.bytes()).toBe(0);
   expect(cache.acquire("b", 100, now + 100).status).toBe("acquired");
   expect(cache.bytes()).toBe(0);
+});
+
+test("a fresh response is cached when only peer records have expired", () => {
+  const cache = new IdempotencyCache({ maxBytes: 100 });
+  const now = 1_000_000;
+
+  cache.acquire("a", 10, now);
+  cache.complete("a", 200, headers, body(40), 10, now);
+  cache.acquire("b", 10, now);
+  cache.complete("b", 200, headers, body(40), 10, now);
+
+  // Both peers are gone by now. Without reclaiming them before the budget
+  // check, c would be discarded even though it fits in an empty cache.
+  cache.acquire("c", 10, now + 100);
+  cache.complete("c", 200, headers, body(40), 10, now + 100);
+  expect(cache.acquire("c", 10, now + 100).status).toBe("cached");
+  expect(cache.bytes()).toBe(40);
+});
+
+test("capacity eviction keeps a live response when a later peer has expired", () => {
+  const cache = new IdempotencyCache({ maxKeys: 2 });
+  const now = 1_000_000;
+
+  cache.acquire("long-lived", 200, now);
+  cache.complete("long-lived", 200, headers, body(10), 200, now);
+  cache.acquire("short-lived", 50, now + 100);
+  cache.complete("short-lived", 200, headers, body(20), 50, now + 100);
+
+  // short-lived has lapsed but long-lived is still valid at now + 150.
+  cache.acquire("fresh", 100, now + 150);
+  expect(cache.acquire("long-lived", 100, now + 150).status).toBe("cached");
+  expect(cache.size()).toBe(2);
 });
