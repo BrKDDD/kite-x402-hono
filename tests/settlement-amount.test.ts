@@ -129,14 +129,15 @@ describe("SettlementReconciler amount integrity", () => {
     expect(reconciler.size()).toBe(1);
   });
 
-  test("sums every successful settlement across all three representations", () => {
+  test("sums successful settlements across bigint, number and integer string", () => {
     const reconciler = new SettlementReconciler();
     reconciler.record(receipt("0xdd01", 1_000_000n));
     reconciler.record(receipt("0xdd02", 2_500_000));
     reconciler.record(receipt("0xdd03", "4000000"));
 
-    // Before this change the integer string was skipped and the total was a
-    // partial sum that still looked plausible.
+    // All three inputs are valid atomic amounts. The regression this pins is
+    // the rejection path above: an invalid successful receipt must never be
+    // recorded and then skipped during summation.
     expect(reconciler.getSummary().totalSettledAmount).toBe(7_500_000n);
     expect(reconciler.getSummary().successfulSettlements).toBe(3);
   });
@@ -150,6 +151,23 @@ describe("SettlementReconciler amount integrity", () => {
     expect(summary.totalSettledAmount).toBe(1_000n);
     expect(summary.successfulSettlements).toBe(1);
     expect(summary.failedSettlements).toBe(1);
+  });
+
+  test("a failed receipt keeps its original amount even when it is unrepresentable", () => {
+    const reconciler = new SettlementReconciler();
+    reconciler.record({
+      ...receipt("0xee03", "not-an-atomic-amount"),
+      success: false,
+    });
+
+    const summary = reconciler.getSummary();
+    expect(summary.failedSettlements).toBe(1);
+    expect(summary.successfulSettlements).toBe(0);
+    expect(summary.totalSettledAmount).toBe(0n);
+
+    const stored = reconciler.getByTxHash("0xee03");
+    expect(stored?.amount).toBe("not-an-atomic-amount");
+    expect(stored?.amountAtomic).toBe(0n);
   });
 
   test("keeps the reported amount representation unchanged", () => {

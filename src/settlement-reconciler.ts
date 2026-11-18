@@ -20,9 +20,12 @@ export interface SettlementReceipt {
 /**
  * A receipt that has been accepted by the reconciler.
  *
- * `amountAtomic` is the parsed form of `amount`, computed once on entry. It is
- * always a non-negative integer below 2^256, which is what makes aggregation
- * total: no recorded settlement can be skipped during summation.
+ * `amountAtomic` is the parsed form of `amount` for successful receipts, computed
+ * once on entry. It is always a non-negative integer below 2^256, which is what
+ * makes aggregation total: no recorded settlement can be skipped during summation.
+ * Failed receipts keep the previous permissive behaviour because their amount
+ * never enters the total; an unrepresentable amount is stored as 0n here while
+ * the original `amount` is retained verbatim.
  */
 export interface StoredSettlementReceipt extends SettlementReceipt {
   readonly amountAtomic: bigint;
@@ -67,10 +70,14 @@ export class SettlementReconciler {
     if (this.network !== undefined && receipt.network !== this.network)
       throw new Error("Settlement network does not match this reconciler");
 
-    // Reject before the duplicate check so an invalid amount is always reported,
-    // and parse once here so aggregation never has to interpret it again.
-    const amountAtomic = tryParseAtomicAmount(receipt.amount);
-    if (amountAtomic === null) throw new Error("Invalid settlement amount");
+    // Reject an unrepresentable amount on a successful settlement before the
+    // duplicate check, and parse once here so aggregation never interprets it
+    // again. Failed settlements keep their previous permissive behaviour: their
+    // amount is telemetry only and never reaches the total.
+    const parsedAmount = tryParseAtomicAmount(receipt.amount);
+    if (receipt.success && parsedAmount === null)
+      throw new Error("Invalid settlement amount");
+    const amountAtomic = parsedAmount ?? 0n;
 
     const txKey = receipt.txHash.toLowerCase();
     const payerKey = receipt.payer.toLowerCase();

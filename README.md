@@ -364,10 +364,11 @@ Valid incoming `X-Request-ID` values are reused; missing/invalid IDs receive a U
 
 That atomic-amount rule is defined once, in `tryParseAtomicAmount`, and both this
 cache and `SettlementReconciler` apply it. `SettlementReconciler.record()` rejects
-an amount it cannot represent as atomic units instead of accepting it and skipping
-it during aggregation, so `totalSettledAmount` always covers every settlement
-counted in `successfulSettlements`. Stored receipts keep the supplied
-representation and expose the parsed value as `amountAtomic`. See
+an unrepresentable amount on a successful receipt instead of accepting it and
+skipping it during aggregation, so `totalSettledAmount` always covers every
+settlement counted in `successfulSettlements`. Failed receipts keep their original
+amount as failure telemetry. Stored receipts keep the supplied representation and
+expose the parsed value as `amountAtomic`. See
 `docs/settlement-amount-integrity.md`.
 
 `corsAllowlistValidator({ allowedDomains, credentials: false })` is optional middleware for explicit integration, replacing other CORS middleware. Strings are exact serialized HTTP(S) origins; regexes must match the whole origin, with global/sticky flags removed. Enable credentials explicitly only for trusted origins. Only valid preflights return 204; denied preflights return 403; ordinary OPTIONS continues downstream. Payment-Signature and Idempotency-Key are allowed, and payment response headers are exposed. CORS does not authenticate callers or block non-browser requests. Neither utility is automatically enabled by createApp.

@@ -43,9 +43,11 @@ disagreed, silently.
 The contract now lives in `src/amount.ts` as `tryParseAtomicAmount`, and both
 modules use it, so they cannot drift apart again:
 
-- `SettlementReconciler.record()` rejects an unrepresentable amount with
-  `Invalid settlement amount` instead of recording it. Validation runs before the
-  duplicate check, so a malformed retry is reported rather than ignored.
+- `SettlementReconciler.record()` rejects an unrepresentable amount on a
+  **successful** receipt with `Invalid settlement amount` instead of recording it.
+  Validation runs before the duplicate check, so a malformed retry is reported
+  rather than ignored. Failed receipts keep the previous permissive behaviour:
+  their amount is failure telemetry and never reaches the total.
 - `getSummary()` sums a parsed value stored on entry, so no recorded settlement
   can be skipped and the `try`/`catch` is gone.
 - `ReceiptMemoryCache.set()` keeps its own `Invalid receipt or TTL` message but
@@ -58,14 +60,16 @@ answer is to fail where the mistake is made, not to under-report later.
 Stored receipts keep the caller's original representation, so `amount` still
 reads back as `"1000"` or `1000n` as supplied. The parsed form is exposed
 additively as `amountAtomic` on `StoredSettlementReceipt`, which is the type
-`getByTxHash`, `getByPayer` and `query` now return.
+`getByTxHash`, `getByPayer` and `query` now return. A failed receipt with an
+unrepresentable amount keeps that value verbatim and reports `amountAtomic: 0n`,
+because it cannot contribute to the settled total.
 
-Fifteen tests in `tests/settlement-amount.test.ts` cover the accepted set, each
+Sixteen tests in `tests/settlement-amount.test.ts` cover the accepted set, each
 rejection case, the uint256 bound in both directions, the padded-string bound,
-and the aggregator regression: three settlements across `bigint`, integer
-`number` and integer `string` total to `7500000n`. The existing 278 tests pass
-unchanged, including the receipt-cache cases that pin the pre-existing rule, which
-confirms the extraction is behaviour-preserving.
+the failed-receipt exception, and the aggregator regression: three settlements
+across `bigint`, integer `number` and integer `string` total to `7500000n`. The
+existing 278 tests pass unchanged, including the receipt-cache cases that pin the
+pre-existing rule, which confirms the extraction is behaviour-preserving.
 
 Against the previous source the aggregator case fails: the total is a partial sum
 and `record()` accepts the invalid inputs.
@@ -75,6 +79,10 @@ and `record()` accepts the invalid inputs.
 `SettlementReconciler` still stores receipts in memory with FIFO eviction and no
 persistence. Rejecting invalid amounts does not make the total durable or
 complete across restarts.
+
+Only successful receipts are validated. A failed receipt with an arbitrary amount
+string is still recorded as failure telemetry, and its `amountAtomic: 0n` is a
+placeholder for aggregation, not a parsed settlement value.
 
 The `number` branch accepts only safe integers, so a caller holding an atomic
 amount above `Number.MAX_SAFE_INTEGER` must send `bigint` or a string. That was
