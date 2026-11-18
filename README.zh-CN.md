@@ -251,3 +251,11 @@ PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-revi
 `ReceiptMemoryCache` 提供毫秒 TTL 和 LRU 淘汰，读取及 has 查询都会更新访问顺序，输入输出均隔离复制。金额支持 uint256 范围的 bigint、十进制整数字符串或安全整数。它只保存调用者已经验证的回执，不提供支付验证、持久化防重放或自动跨链隔离；不同链和资产应使用独立实例或明确隔离的键。索引查询和对账可使用已有 ReceiptStore、SettlementReconciler。
 
 `corsAllowlistValidator({ allowedDomains, credentials: false })` 需要显式接入并替换其他 CORS 中间件。字符串匹配完整 HTTP(S) origin，正则必须匹配整个 origin；凭证需要显式开启。仅合法浏览器预检返回 204，拒绝的预检返回 403，普通 OPTIONS 继续进入支付处理。支持 Payment-Signature、Idempotency-Key 并暴露支付响应头。CORS 不提供身份认证。两项工具均不会由 createApp 自动启用。
+
+### 离线配置预检
+
+启动网关前执行 `bun src/cli.ts --check-config`（Bun 自动读取本地 `.env`）；构建后可用 `bun dist/cli.js --check-config --json` 输出机器可读报告。安装包含此功能的新版本后，可使用 `bunx kite-x402-hono --check-config`。配置通过退出码为 0，配置错误为 1；警告不改变退出码。
+
+预检复用 `loadConfig` 的启动校验规则，一次报告多个字段错误。输出仅包含字段名、固定修复提示和 Kite 网络、资产、最小单位价格，不打印密钥、原始 URL 或解析异常内容。未设置的可选字段保持启动默认值，布尔和日志设置沿用原有解释规则。修正错误后再次运行可查看完整摘要和部署警告。代码调用可导入 `checkConfig(env)`、`formatConfigPreflight(report)`。
+
+这是离线配置检查，不监听端口、不访问上游或支付服务、不验证钱包所有权，也不执行付款。未知或拼错的环境变量名不在检查范围内。服务连通性和真实支付验收需要另行进行。

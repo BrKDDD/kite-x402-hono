@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add offline `--check-config [--json]` diagnostics using startup validation, aggregated field errors, redacted output and deployment warnings. No server or payment calls are started.
+
 ## 0.7.0
 
 - Review PRs #63–#64: export validated, copy-isolated LRU receipt storage and an opt-in CORS allowlist with full-origin matching and strict preflight checks. Ordinary OPTIONS still reaches payment handling.
