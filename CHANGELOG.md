@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add offline `--check-config [--json]` diagnostics using startup validation, aggregated field errors, redacted output and deployment warnings. No server or payment calls are started.
 - Fix `PaymentNonceReplayGuard.commit()` dropping a settled nonce at the entry
   cap: records that lapsed between acquisition and settlement could occupy the cap
   and make a consumed nonce report `AVAILABLE` afterwards. Both `commit()` and
