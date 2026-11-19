@@ -43,6 +43,47 @@ test("TokenBucketRateLimiter allows burst requests up to capacity", () => {
   expect(r4.resetSeconds).toBeGreaterThanOrEqual(1);
 });
 
+test.each(["", "normal"])(
+  "TokenBucketRateLimiter resets only the specified key (%j)",
+  (key) => {
+    const limiter = new TokenBucketRateLimiter({ rps: 1, burst: 1 });
+    const now = 1000;
+    expect(limiter.consume(key, now).allowed).toBe(true);
+    expect(limiter.consume("other", now).allowed).toBe(true);
+    expect(limiter.consume(key, now).allowed).toBe(false);
+
+    limiter.reset(key);
+
+    expect(limiter.consume(key, now).allowed).toBe(true);
+    expect(limiter.consume("other", now).allowed).toBe(false);
+  },
+);
+
+test("TokenBucketRateLimiter resets every bucket when no key is supplied", () => {
+  const limiter = new TokenBucketRateLimiter({ rps: 1, burst: 1 });
+  const now = 1000;
+  expect(limiter.consume("", now).allowed).toBe(true);
+  expect(limiter.consume("normal", now).allowed).toBe(true);
+
+  limiter.reset();
+
+  expect(limiter.consume("", now).allowed).toBe(true);
+  expect(limiter.consume("normal", now).allowed).toBe(true);
+});
+
+test.each(["", "missing"])(
+  "TokenBucketRateLimiter leaves other buckets alone for an absent key (%j)",
+  (key) => {
+    const limiter = new TokenBucketRateLimiter({ rps: 1, burst: 1 });
+    const now = 1000;
+    expect(limiter.consume("other", now).allowed).toBe(true);
+
+    limiter.reset(key);
+
+    expect(limiter.consume("other", now).allowed).toBe(false);
+  },
+);
+
 test("TokenBucketRateLimiter refills tokens over time", () => {
   const limiter = new TokenBucketRateLimiter({ rps: 10, burst: 10 });
   const t0 = 1000000;
