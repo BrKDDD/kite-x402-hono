@@ -1,12 +1,43 @@
 #!/usr/bin/env bun
+import { probeService, formatServiceProbe } from "./service-probe.js";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { checkConfig, formatConfigPreflight } from "./config-preflight.js";
 
 if (process.argv.includes("--help")) {
   console.log(
-    "Usage: kite-x402-hono [--check-config [--json]]\n--check-config: validate configuration offline without starting the server\n--json: machine-readable preflight report\nRequired: PAY_TO, UPSTREAM_URL\nOptional: KITE_NETWORK, PRICE_USD, PORT, FACILITATOR_URL, UPSTREAM_AUTH_HEADER, UPSTREAM_AUTH_VALUE, UPSTREAM_TIMEOUT_MS, MAX_BODY_BYTES, MAX_CONCURRENT_REQUESTS, FACILITATOR_TIMEOUT_MS, CORS_ORIGIN, SHUTDOWN_TIMEOUT_MS\nSee README.md for configuration and examples.",
+    "Usage: kite-x402-hono [--check-config [--json]]\n--check-config: validate configuration offline without starting the server\n--probe-service ORIGIN --network NETWORK: check public gateway diagnostics\n--json: machine-readable diagnostic report\nRequired: PAY_TO, UPSTREAM_URL\nOptional: KITE_NETWORK, PRICE_USD, PORT, FACILITATOR_URL, UPSTREAM_AUTH_HEADER, UPSTREAM_AUTH_VALUE, UPSTREAM_TIMEOUT_MS, MAX_BODY_BYTES, MAX_CONCURRENT_REQUESTS, FACILITATOR_TIMEOUT_MS, CORS_ORIGIN, SHUTDOWN_TIMEOUT_MS\nSee README.md for configuration and examples.",
   );
+} else if (process.argv.includes("--probe-service")) {
+  try {
+    if (process.argv.includes("--check-config"))
+      throw new Error("Choose either --probe-service or --check-config.");
+    const args = process.argv.slice(2);
+    const value = (flag: string) => {
+      const at = args.indexOf(flag);
+      return at >= 0 ? args[at + 1] : undefined;
+    };
+    const origin = value("--probe-service");
+    const expectedNetwork = value("--network");
+    if (!origin || !expectedNetwork)
+      throw new Error(
+        "Supply --probe-service ORIGIN and --network mainnet|testnet.",
+      );
+    const report = await probeService({ origin, expectedNetwork });
+    console.log(
+      args.includes("--json")
+        ? JSON.stringify(report)
+        : formatServiceProbe(report),
+    );
+    process.exitCode = report.ok ? 0 : 1;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Service probe failed.";
+    if (process.argv.includes("--json"))
+      console.log(JSON.stringify({ ok: false, error: message }));
+    else console.error(message);
+    process.exitCode = 1;
+  }
 } else if (process.argv.includes("--check-config")) {
   const report = checkConfig();
   console.log(
@@ -16,7 +47,7 @@ if (process.argv.includes("--help")) {
   );
   process.exitCode = report.ok ? 0 : 1;
 } else if (process.argv.includes("--json")) {
-  console.error("--json requires --check-config");
+  console.error("--json requires --check-config or --probe-service");
   process.exitCode = 1;
 } else {
   try {
