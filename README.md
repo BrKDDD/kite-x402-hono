@@ -176,6 +176,15 @@ Compatibility notes:
 
 Active nonce reservations remain held until their request finishes or settlement begins. The legacy `inFlightTtlMs` option is retained but does not evict active work. The middleware uses owner-bound reservations so an old request cannot release a replacement. Consumed retention remains process-local and time-limited; persistent or multi-process coordination belongs to the application.
 
+Reaching `maxEntries` reclaims lapsed records before the guard acts on the count,
+so a settled nonce is recorded rather than dropped, and a payment whose only
+obstacle is an unreclaimed slot is admitted. Expired records are swept at most once
+per `sweepIntervalMs` (default 1000; `0` restores a sweep per acquisition) instead
+of on every acquisition, so a payment does not pay for walking the whole map.
+Replay decisions are unaffected: `check` and `acquire` read the target entry's own
+expiry. See `docs/nonce-guard-sweep.md` for the measured cost and the eviction
+contract.
+
 ## Verification
 
 ### Idempotent paid retries
