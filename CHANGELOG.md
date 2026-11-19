@@ -2,14 +2,7 @@
 
 ## Unreleased
 
-- Bound the idempotency cache work per request: a deadline-ordered expiry index
-  replaces the full sweep, eviction reads a completion-ordered index instead of
-  materialising every record, and cached body bytes are accounted incrementally
-  instead of summed on every completion. Lapsed records are reclaimed before
-  capacity decisions, preserving the previous byte-budget and eviction behaviour.
-  Measured on 5,000 keys, `acquire()` + `complete()` drops from 410.7 µs to
-  6.24 µs per pair. `bytes()` exposes the accounted total.
-  See docs/idempotency-hot-path.md.
+- Add offline `--check-config [--json]` diagnostics using startup validation, aggregated field errors, redacted output and deployment warnings. No server or payment calls are started.
 
 ## 0.7.0
 

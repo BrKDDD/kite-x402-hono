@@ -53,6 +53,38 @@ describe("GET /stats operational metrics", () => {
     expect(stats.traffic.successful).toBe(1);
   });
 
+  test("counts a locally rejected streamed body exactly once", async () => {
+    const { app, events } = harness({ env: { MAX_BODY_BYTES: "4" } });
+    const response = await app.request("/v1/echo", {
+      method: "POST",
+      headers: { "payment-signature": await signature(app) },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(3));
+          controller.enqueue(new Uint8Array(2));
+          controller.close();
+        },
+      }),
+    });
+    expect(response.status).toBe(413);
+    expect(events).toEqual(["verify"]);
+    const stats = await (await app.request("/stats")).json();
+    expect(stats.traffic.too_large).toBe(1);
+  });
+
+  test("does not count a 413 returned by the upstream", async () => {
+    const { app, events } = harness({
+      upstream: async () => new Response(null, { status: 413 }),
+    });
+    const response = await app.request("/v1/echo", {
+      headers: { "payment-signature": await signature(app) },
+    });
+    expect(response.status).toBe(413);
+    expect(events).toEqual(["verify", "upstream"]);
+    const stats = await (await app.request("/stats")).json();
+    expect(stats.traffic.too_large).toBe(0);
+  });
+
   test("tracks declared oversized bodies in too_large counter", async () => {
     const { app } = harness({ env: { MAX_BODY_BYTES: "10" } });
 
