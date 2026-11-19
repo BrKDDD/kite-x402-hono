@@ -38,10 +38,10 @@ Measured on Bun 1.4.4, 2,000 consecutive `reserve()` calls with the clock
 advancing 1 ms per call, both columns the same implementation with
 `sweepIntervalMs` set to `0` and `1000`:
 
-| retained entries | sweep per acquisition (before) | throttled sweep (after) |
-| --- | --- | --- |
-| 10,000 | 227.4 ms total / 113.7 µs per call | 0.9 ms total / 0.5 µs per call |
-| 5,000 | 107.3 ms total / 53.7 µs per call | 0.9 ms total / 0.4 µs per call |
+| retained entries | sweep per acquisition (before)     | throttled sweep (after)        |
+| ---------------- | ---------------------------------- | ------------------------------ |
+| 10,000           | 227.4 ms total / 113.7 µs per call | 0.9 ms total / 0.5 µs per call |
+| 5,000            | 107.3 ms total / 53.7 µs per call  | 0.9 ms total / 0.4 µs per call |
 
 The guard performed 2,000 full scans before the change and 2 after it. This cost
 only matters once a deployment retains thousands of live nonces, which is the same
