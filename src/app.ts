@@ -465,6 +465,9 @@ export function createApp(
       c.req.raw,
       config,
       options.fetchUpstream ?? ((request) => fetch(request)),
+      () => {
+        metrics.tooLarge++;
+      },
     );
     return response;
   });

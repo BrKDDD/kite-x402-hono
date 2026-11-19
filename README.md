@@ -372,3 +372,11 @@ expose the parsed value as `amountAtomic`. See
 `docs/settlement-amount-integrity.md`.
 
 `corsAllowlistValidator({ allowedDomains, credentials: false })` is optional middleware for explicit integration, replacing other CORS middleware. Strings are exact serialized HTTP(S) origins; regexes must match the whole origin, with global/sticky flags removed. Enable credentials explicitly only for trusted origins. Only valid preflights return 204; denied preflights return 403; ordinary OPTIONS continues downstream. Payment-Signature and Idempotency-Key are allowed, and payment response headers are exposed. CORS does not authenticate callers or block non-browser requests. Neither utility is automatically enabled by createApp.
+
+### Offline configuration preflight
+
+Before starting the gateway, run `bun src/cli.ts --check-config` from source (Bun loads your local `.env`), or `bun dist/cli.js --check-config --json` after building. When using a package release that includes this feature, use `bunx kite-x402-hono --check-config`. Exit code 0 means the startup configuration is accepted; 1 means invalid configuration. Warnings do not change the exit code.
+
+The check reuses `loadConfig`, aggregates errors across required and optional validated settings, and outputs only field names, fixed guidance and the selected Kite network/asset/atomic price. It never prints credentials, raw URL values or parser exception messages. Unset optional fields retain startup defaults; existing permissive boolean/log settings retain their startup interpretation. Correct invalid fields and rerun to see the combined summary and deployment warnings. Library callers can import `checkConfig(env)` and `formatConfigPreflight(report)`.
+
+This is offline configuration validation only: it does not bind a server port, contact the upstream or facilitator, prove wallet ownership, or execute a payment. It does not detect misspelled/unknown environment keys. Reachability and real payment acceptance require separate checks.

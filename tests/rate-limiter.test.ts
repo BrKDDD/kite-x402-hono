@@ -78,6 +78,37 @@ describe("AdaptiveRateLimiter Unit Tests", () => {
     expect(limiter.consume("client-c", 1, 0).allowed).toBe(true);
   });
 
+  test("cleanup preserves partially refilled buckets", () => {
+    const limiter = new AdaptiveRateLimiter({
+      capacity: 10,
+      refillRatePerSec: 0.1,
+      cleanupIntervalMs: 1000,
+    });
+
+    expect(limiter.consume("client", 10, 0).allowed).toBe(true);
+    // Cleanup must not grant a fresh burst before the refill permits it.
+    expect(limiter.consume("client", 1, 2000).allowed).toBe(false);
+    expect(limiter.consume("client", 1, 10000).allowed).toBe(true);
+    expect(limiter.consume("client", 1, 10000).allowed).toBe(false);
+  });
+
+  test("cleanup reclaims exhausted buckets only after a full refill", () => {
+    const limiter = new AdaptiveRateLimiter({
+      capacity: 10,
+      refillRatePerSec: 1,
+      cleanupIntervalMs: 1000,
+    });
+
+    limiter.consume("old-client", 10, 0);
+    limiter.consume("fresh-client", 1, 2000);
+    expect(limiter.activeClientCount).toBe(2);
+
+    limiter.consume("fresh-client", 1, 10000);
+    expect(limiter.activeClientCount).toBe(1);
+    expect(limiter.consume("old-client", 10, 10000).allowed).toBe(true);
+    expect(limiter.consume("old-client", 1, 10000).allowed).toBe(false);
+  });
+
   test("purges stale client buckets after cleanup interval", () => {
     const limiter = new AdaptiveRateLimiter({
       capacity: 10,

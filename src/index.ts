@@ -105,3 +105,10 @@ export * from "./middleware/structuredErrorLogger.js";
 
 export * from "./services/receiptMemoryCache.js";
 export * from "./middleware/corsAllowlistValidator.js";
+
+export {
+  checkConfig,
+  formatConfigPreflight,
+  type ConfigPreflightReport,
+  type ConfigDiagnostic,
+} from "./config-preflight.js";
