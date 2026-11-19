@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `--probe-service ORIGIN --network NETWORK [--json]` and `probeService()` for bounded, credential-free gateway health, readiness and Kite discovery checks. Distinguish configuration mismatches and readiness failures without performing payments.
+
 - Add offline `--check-config [--json]` diagnostics using startup validation, aggregated field errors, redacted output and deployment warnings. No server or payment calls are started.
 
 ## 0.7.0

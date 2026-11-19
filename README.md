@@ -371,3 +371,20 @@ Before starting the gateway, run `bun src/cli.ts --check-config` from source (Bu
 The check reuses `loadConfig`, aggregates errors across required and optional validated settings, and outputs only field names, fixed guidance and the selected Kite network/asset/atomic price. It never prints credentials, raw URL values or parser exception messages. Unset optional fields retain startup defaults; existing permissive boolean/log settings retain their startup interpretation. Correct invalid fields and rerun to see the combined summary and deployment warnings. Library callers can import `checkConfig(env)` and `formatConfigPreflight(report)`.
 
 This is offline configuration validation only: it does not bind a server port, contact the upstream or facilitator, prove wallet ownership, or execute a payment. It does not detect misspelled/unknown environment keys. Reachability and real payment acceptance require separate checks.
+
+### Gateway service diagnostics
+
+After starting a gateway, run:
+
+```sh
+bun src/cli.ts --probe-service http://127.0.0.1:8080 --network testnet
+bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --json
+```
+
+Use source or built commands until a package containing the feature is published. No PAY_TO or UPSTREAM_URL is required for this client mode. An explicit expected network is required (`mainnet`, `testnet`, chain ID or CAIP-2). It cannot be combined with `--check-config`. Exit 0 means all three diagnostics passed; exit 1 means a failed check or invalid arguments.
+
+Unlike generic `ReadinessProbe`, which checks transport status for arbitrary targets, this tool reads only `/healthz`, `/readyz` and `/.well-known/x402` on one operator-supplied gateway origin. It verifies HTTP 200 and response shape, expected Kite network, advertised token address/decimals and basic discovery payment fields. Readiness failures distinguish maintenance, facilitator unavailable and network not offered. Other outcomes include unreachable, timeout, redirect, HTTP error, invalid response and network/asset/protocol mismatch. The discovery schema is this wrapper's format, not a universal x402 schema.
+
+Requests are concurrent, unauthenticated GETs with redirects disabled, a 5-second per-endpoint deadline (including body) and 64 KiB response limit. A slow `/readyz` can time out even while the gateway's longer facilitator deadline is still running. Library callers can use `probeService({ origin, expectedNetwork, timeoutMs })` with a 1–300000 ms timeout, and `formatServiceProbe(report)`. Optional injected fetch implementations must honor abort signals. Reports omit raw bodies, URLs, server error messages and credentials. HTTP is allowed only for localhost development; production targets use HTTPS without paths, credentials, queries or fragments.
+
+This tool reports what the gateway advertises; it does not call `/v1/*`, verify wallet ownership, prove upstream readiness or perform settlement. It does not compare price/receiver against a merchant policy. Use only operator-controlled target input; do not expose arbitrary target URLs as a public web service. Health/readiness requests may appear in access logs and readiness can cause the gateway to query its facilitator.
