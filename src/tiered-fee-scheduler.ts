@@ -109,13 +109,8 @@ export class TieredFeeScheduler {
   ): TierEvaluation {
     if (!clientAddress) throw new Error("Missing client");
     const key = clientAddress.toLowerCase();
-    const now = Date.now();
-    const record = this.clientVolumes.get(key);
-
     const activeVolume =
-      record && now - record.lastUpdatedMs <= this.epochTtlMs
-        ? record.cumulativeVolumeAtomic
-        : 0n;
+      this.getActiveRecord(key)?.cumulativeVolumeAtomic ?? 0n;
 
     if (baseAmountAtomic < 0n) throw new Error("Negative fee");
     // Find the matching tier
@@ -147,13 +142,20 @@ export class TieredFeeScheduler {
   }
 
   /**
-   * Retrieves client record.
+   * Returns a snapshot of the client record while its volume is active.
    */
   public getClientRecord(
     clientAddress: string,
   ): ClientVolumeRecord | undefined {
-    const record = this.clientVolumes.get(clientAddress.toLowerCase());
+    const record = this.getActiveRecord(clientAddress.toLowerCase());
     return record ? { ...record } : undefined;
+  }
+
+  private getActiveRecord(key: string): ClientVolumeRecord | undefined {
+    const record = this.clientVolumes.get(key);
+    return record && Date.now() - record.lastUpdatedMs <= this.epochTtlMs
+      ? record
+      : undefined;
   }
 
   /**
