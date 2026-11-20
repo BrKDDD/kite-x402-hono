@@ -28,15 +28,16 @@ export class WebhookDispatcher {
     event: WebhookEventPayload,
     fetchFn = fetch,
   ): Promise<{ success: boolean; status?: number; error?: string }> {
-    const serialized = JSON.stringify(event);
-    const signature = this.signPayload(serialized, endpoint.secret);
     const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      endpoint.timeoutMs ?? 5000,
-    );
-
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
+      // 通知准备失败也走结构化结果；通知失败不能作为重试链上付款的依据。
+      const serialized = JSON.stringify(event);
+      const signature = this.signPayload(serialized, endpoint.secret);
+      timeout = setTimeout(
+        () => controller.abort(),
+        endpoint.timeoutMs ?? 5000,
+      );
       const resp = await fetchFn(endpoint.url, {
         method: "POST",
         redirect: "error",
@@ -55,13 +56,16 @@ export class WebhookDispatcher {
         success: resp.ok,
         status: resp.status,
       };
-    } catch (err: any) {
+    } catch (err) {
       return {
         success: false,
-        error: err.message || "Failed to dispatch webhook",
+        error:
+          err instanceof Error && typeof err.message === "string" && err.message
+            ? err.message
+            : "Failed to dispatch webhook",
       };
     } finally {
-      clearTimeout(timeout);
+      if (timeout !== undefined) clearTimeout(timeout);
     }
   }
 }
