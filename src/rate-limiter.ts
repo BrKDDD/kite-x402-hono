@@ -289,7 +289,7 @@ export class TokenBucketRateLimiter {
   }
 
   public reset(key?: string): void {
-    if (key) {
+    if (key !== undefined) {
       this.buckets.delete(key);
     } else {
       this.buckets.clear();
