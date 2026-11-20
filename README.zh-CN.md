@@ -276,3 +276,27 @@ bun dist/cli.js --probe-service https://your-gateway.example --network mainnet -
 三个 GET 并发执行，不发送凭证、不跟随重定向；每个接口默认 5 秒截止时间（含响应体），响应最多 64 KiB。就绪接口可能在网关自身支付服务超时前先被探测工具判为超时。库调用 `probeService({ origin, expectedNetwork, timeoutMs })` 可设置 1–300000 毫秒超时；自定义 fetch 必须遵守取消信号。报告不保存原始响应体、URL、远端异常消息或密钥。仅 localhost 开发允许 HTTP，其他目标要求 HTTPS。
 
 探测通过只说明诊断接口的报告符合预期，不调用付费接口，不证明上游可用、钱包所有权或真实支付成功，也不将价格和收款地址与商户策略比对。目标地址必须由操作人员控制，不应将任意 URL 探测暴露为公共接口。请求可能被网关记入日志，就绪检查会触发网关查询支付服务。
+
+### 检查未付款的 402 支付挑战
+
+指定由你控制的 GET 接口，以及独立确认的预期支付策略：
+
+```sh
+bun src/cli.ts --check-challenge http://127.0.0.1:8080/v1/echo --network testnet --amount 1000000000000000 --pay-to 0x1234567890123456789012345678901234567890 --json
+```
+
+`--amount` 是**精确的代币最小单位整数**，不是小数价格。测试网 0.001 pieUSD
+对应 `1000000000000000`；主网 0.001 USDC.e 对应 `1000`。请替换为你的预期收款地址，
+不要直接从不可信挑战中复制预期值。匹配成功退出码为 0，否则为 1。
+
+库导出 `checkPaymentChallenge({ url, expectedNetwork, expectedAmount, expectedPayTo,
+timeoutMs? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402、Base64 编码的
+`PAYMENT-REQUIRED`、x402 v2/exact、固定的 Kite 代币、精确金额与收款地址，以及正整数支付超时。
+逐项检查支付选项，任一完整匹配即通过；`matchedIndex` 指明匹配位置。没有匹配时，顶层
+`code` 是首个选项的失败原因，全部结果见 `alternatives`。不验证扩展字段和资源描述，
+通过不代表钱包能签名或 facilitator 能完成结算。
+
+只发起一次不带凭证或支付签名的 GET，不跟随重定向。除本机 HTTP 外要求 HTTPS；
+默认请求超时 5 秒，库参数允许 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
+无需读取响应体，报告不回显远端原文或 URL。目标 URL 不应包含秘密。此工具用于运维，
+不要包装成对公众开放的任意 URL 探测服务。仅检查 GET 报价，不进行付款、上游交付或链上结算。
