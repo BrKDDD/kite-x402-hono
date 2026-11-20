@@ -397,3 +397,34 @@ Unlike generic `ReadinessProbe`, which checks transport status for arbitrary tar
 Requests are concurrent, unauthenticated GETs with redirects disabled, a 5-second per-endpoint deadline (including body) and 64 KiB response limit. A slow `/readyz` can time out even while the gateway's longer facilitator deadline is still running. Library callers can use `probeService({ origin, expectedNetwork, timeoutMs })` with a 1–300000 ms timeout, and `formatServiceProbe(report)`. Optional injected fetch implementations must honor abort signals. Reports omit raw bodies, URLs, server error messages and credentials. HTTP is allowed only for localhost development; production targets use HTTPS without paths, credentials, queries or fragments.
 
 This tool reports what the gateway advertises; it does not call `/v1/*`, verify wallet ownership, prove upstream readiness or perform settlement. It does not compare price/receiver against a merchant policy. Use only operator-controlled target input; do not expose arbitrary target URLs as a public web service. Health/readiness requests may appear in access logs and readiness can cause the gateway to query its facilitator.
+
+### Inspect an unpaid payment challenge
+
+Use an operator-controlled GET endpoint and an independently known payment policy:
+
+```sh
+bun src/cli.ts --check-challenge http://127.0.0.1:8080/v1/echo --network testnet --amount 1000000000000000 --pay-to 0x1234567890123456789012345678901234567890 --json
+```
+
+`--amount` is the **exact atomic token amount**, not a decimal price: 0.001 pieUSD
+on testnet is `1000000000000000`; 0.001 USDC.e on mainnet is `1000`. Replace the
+example address with your expected recipient. Do not copy expected values from
+an untrusted challenge. Exit status is 0 for a matching alternative, otherwise 1.
+
+The library exports `checkPaymentChallenge({ url, expectedNetwork, expectedAmount,
+expectedPayTo, timeoutMs? })` and `formatPaymentChallenge(report)`. It requires HTTP
+402 and the Base64 `PAYMENT-REQUIRED` header, x402 v2/exact, the pinned Kite token,
+an exact amount and recipient match, and a positive integer payment timeout.
+Each alternative has a diagnostic code; a match at any index passes. When none
+match, the top-level code is the first alternative's failure; inspect
+`alternatives` for all reasons. Unknown extensions/resource descriptions are not
+validated, and success is not proof that a wallet can sign or a facilitator can
+settle the offer.
+
+The checker makes one GET without credentials, payment signatures or redirects.
+HTTPS is required except localhost HTTP; the default request deadline is 5 seconds
+(configurable 1–300000 ms via the library). It bounds the encoded header to 64 KiB
+and alternatives to 100, cancels the unused body, and reports fixed codes without
+remote content or URLs. Keep target URLs free of secrets and use this as an
+operator tool, not a public arbitrary-URL endpoint. Only GET offers are inspected;
+no payment, upstream delivery or on-chain settlement is tested.
