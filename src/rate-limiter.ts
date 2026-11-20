@@ -212,11 +212,16 @@ export class TokenBucketRateLimiter {
     if (!Number.isFinite(options.rps) || options.rps <= 0) {
       throw new Error("Rate limit RPS must be greater than zero");
     }
+    if (options.burst !== undefined && !Number.isFinite(options.burst))
+      throw new Error("Rate limit burst must be finite");
     this.rps = options.rps;
     this.burst =
       options.burst && options.burst >= options.rps
         ? options.burst
         : options.rps * 2;
+    // 容量必须能逐枚扣减；非有限数或过大的浮点值会使配额无法耗尽。
+    if (!Number.isFinite(this.burst) || this.burst > Number.MAX_SAFE_INTEGER)
+      throw new Error("Rate limit burst exceeds safe token accounting range");
   }
 
   public getLimit(): number {
