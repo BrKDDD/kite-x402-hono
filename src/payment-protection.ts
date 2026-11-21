@@ -5,7 +5,7 @@ import type { FacilitatorClient } from "@x402/core/server";
 import type { Config } from "./config.js";
 import type { AppOptions } from "./app.js";
 import { IdempotencyCache } from "./idempotency.js";
-import { cleanHeaders, readLimited } from "./proxy.js";
+import { BodyTooLarge, cleanHeaders, readLimited } from "./proxy.js";
 
 interface Lease {
   payer: string;
@@ -21,6 +21,7 @@ export function createPaymentProtection(
   base: FacilitatorClient,
   config: Config,
   options: AppOptions,
+  onRequestTooLarge?: () => void,
 ) {
   const storage = new AsyncLocalStorage<Scope>();
   const cache = options.idempotencyCache ?? new IdempotencyCache();
@@ -94,10 +95,12 @@ export function createPaymentProtection(
           config.maxBodyBytes,
           controller.signal,
         );
-      } catch {
-        return controller.signal.aborted
-          ? c.json({ error: "request_timeout_or_abort" }, 408)
-          : c.json({ error: "idempotency_request_body_unavailable" }, 413);
+      } catch (error) {
+        if (controller.signal.aborted)
+          return c.json({ error: "request_timeout_or_abort" }, 408);
+        // 指纹阶段先于 proxy 读取；只记录已确认的超限，读取错误不等于正文过大。
+        if (error instanceof BodyTooLarge) onRequestTooLarge?.();
+        return c.json({ error: "idempotency_request_body_unavailable" }, 413);
       } finally {
         clearTimeout(timer);
         c.req.raw.signal.removeEventListener("abort", onAbort);
