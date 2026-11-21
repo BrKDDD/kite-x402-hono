@@ -17,6 +17,7 @@ export {
 
 export { IdempotencyCache } from "./idempotency.js";
 export { PaymentNonceReplayGuard } from "./nonce-guard.js";
+export { tryParseAtomicAmount } from "./amount.js";
 export {
   TokenBucketRateLimiter,
   AdaptiveRateLimiter,
@@ -37,6 +38,7 @@ export {
   type ReconcilerSummary,
   type SettlementQuery,
   type SettlementReceipt,
+  type StoredSettlementReceipt,
 } from "./settlement-reconciler.js";
 
 export {
