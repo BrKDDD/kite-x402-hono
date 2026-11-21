@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make challenge deadlines independent of injected fetch abort support; add caller cancellation with redacted `cancelled` reports, late-response cleanup and listener removal.
+
 - Add `checkPaymentChallenge()` and `--check-challenge` to inspect unpaid x402 v2 offers against an explicit Kite network, atomic amount and recipient policy, with bounded parsing and per-alternative diagnostics.
 
 - Add `--probe-service ORIGIN --network NETWORK [--json]` and `probeService()` for bounded, credential-free gateway health, readiness and Kite discovery checks. Distinguish configuration mismatches and readiness failures without performing payments.
