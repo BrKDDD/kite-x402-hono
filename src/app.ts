@@ -258,7 +258,15 @@ export function createApp(
       url: config.facilitatorUrl,
       timeoutMs: facilitatorTimeoutMs,
     });
-  const protection = createPaymentProtection(facilitator, config, options);
+  const countRequestTooLarge = () => {
+    metrics.tooLarge++;
+  };
+  const protection = createPaymentProtection(
+    facilitator,
+    config,
+    options,
+    countRequestTooLarge,
+  );
   const server = new x402ResourceServer(protection.facilitator).register(
     config.chain.network,
     new ExactEvmScheme(),
@@ -465,9 +473,7 @@ export function createApp(
       c.req.raw,
       config,
       options.fetchUpstream ?? ((request) => fetch(request)),
-      () => {
-        metrics.tooLarge++;
-      },
+      countRequestTooLarge,
     );
     return response;
   });
