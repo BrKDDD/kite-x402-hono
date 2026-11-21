@@ -7,11 +7,14 @@ export interface PaymentChallengeOptions {
   expectedAmount: string;
   expectedPayTo: string;
   timeoutMs?: number;
+  /** Cancel an in-progress check without exposing the abort reason. */
+  signal?: AbortSignal;
 }
 export type PaymentChallengeCode =
   | "ok"
   | "unreachable"
   | "timeout"
+  | "cancelled"
   | "redirect"
   | "not_payment_required"
   | "missing_header"
@@ -79,7 +82,29 @@ export async function checkPaymentChallenge(
   const expectedAmount = options.expectedAmount;
   const expectedPayTo = options.expectedPayTo.toLowerCase();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = options.signal;
+  let stopped: "timeout" | "cancelled" | undefined;
+  let finishStop!: (value: undefined) => void;
+  const interrupted = new Promise<undefined>((resolve) => {
+    finishStop = resolve;
+  });
+  const stop = (code: "timeout" | "cancelled") => {
+    if (stopped) return;
+    stopped = code;
+    finishStop(undefined);
+    controller.abort();
+  };
+  const onAbort = () => stop("cancelled");
+  const discard = (value: Response | undefined) => {
+    // Cleanup must never replace a diagnostic, even for a custom fetch response.
+    try {
+      void value?.body?.cancel().catch(() => {});
+    } catch {
+      /* best effort */
+    }
+  };
+  const timer = setTimeout(() => stop("timeout"), timeoutMs);
+  signal?.addEventListener("abort", onAbort, { once: true });
   let response: Response | undefined;
   const alternatives: PaymentChallengeReport["alternatives"] = [];
   const report = (
@@ -94,13 +119,27 @@ export async function checkPaymentChallenge(
     ...(matchedIndex === undefined ? {} : { matchedIndex }),
   });
   try {
-    response = await fetchFn(url.href, {
-      method: "GET",
-      credentials: "omit",
-      redirect: "manual",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
+    if (signal?.aborted) stop("cancelled");
+    if (stopped) return report(stopped);
+    const pending = Promise.resolve(
+      fetchFn(url.href, {
+        method: "GET",
+        credentials: "omit",
+        redirect: "manual",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      }),
+    ).then((value) => {
+      // A non-cooperative fetch may return after this function already finished.
+      if (stopped) {
+        discard(value);
+        return undefined;
+      }
+      return value;
     });
+    response = await Promise.race([pending, interrupted]);
+    if (stopped) return report(stopped);
+    if (!response) return report("unreachable");
     if (response.status >= 300 && response.status < 400)
       return report("redirect");
     if (response.status !== 402) return report("not_payment_required");
@@ -154,17 +193,11 @@ export async function checkPaymentChallenge(
     const match = alternatives.find((entry) => entry.code === "ok");
     return match ? report("ok", match.index) : report(alternatives[0]!.code);
   } catch {
-    return report(
-      controller.signal.aborted
-        ? "timeout"
-        : response
-          ? "invalid_challenge"
-          : "unreachable",
-    );
+    return report(stopped ?? (response ? "invalid_challenge" : "unreachable"));
   } finally {
     clearTimeout(timer);
-    // The response body is unnecessary; do not wait for remote cancellation.
-    void response?.body?.cancel().catch(() => {});
+    signal?.removeEventListener("abort", onAbort);
+    discard(response);
   }
 }
 

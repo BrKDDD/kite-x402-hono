@@ -412,7 +412,7 @@ example address with your expected recipient. Do not copy expected values from
 an untrusted challenge. Exit status is 0 for a matching alternative, otherwise 1.
 
 The library exports `checkPaymentChallenge({ url, expectedNetwork, expectedAmount,
-expectedPayTo, timeoutMs? })` and `formatPaymentChallenge(report)`. It requires HTTP
+expectedPayTo, timeoutMs?, signal? })` and `formatPaymentChallenge(report)`. It requires HTTP
 402 and the Base64 `PAYMENT-REQUIRED` header, x402 v2/exact, the pinned Kite token,
 an exact amount and recipient match, and a positive integer payment timeout.
 Each alternative has a diagnostic code; a match at any index passes. When none
@@ -428,3 +428,25 @@ and alternatives to 100, cancels the unused body, and reports fixed codes withou
 remote content or URLs. Keep target URLs free of secrets and use this as an
 operator tool, not a public arbitrary-URL endpoint. Only GET offers are inspected;
 no payment, upstream delivery or on-chain settlement is tested.
+
+Library callers can pass an `AbortSignal` to cancel a challenge check. An already
+aborted signal prevents the request; cancellation reports `cancelled`, whereas
+the deadline reports `timeout`. Abort reasons are never included in reports.
+The first interruption wins. Listeners and timers are removed when the check
+finishes. The deadline bounds waiting even if an injected fetch ignores abort;
+a late response is discarded and its body cancelled, and a late rejection is
+handled. An uncooperative implementation may continue its own background work;
+JavaScript that blocks the event loop cannot be interrupted by a timer.
+
+```ts
+const controller = new AbortController();
+const pending = checkPaymentChallenge({
+  url: "https://your-gateway.example/v1/echo",
+  expectedNetwork: "testnet",
+  expectedAmount: "1000000000000000",
+  expectedPayTo: "0x1234567890123456789012345678901234567890",
+  signal: controller.signal,
+});
+controller.abort(); // For example, when the operator closes the diagnostic view.
+const report = await pending; // code: "cancelled"
+```

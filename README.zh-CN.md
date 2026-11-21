@@ -290,7 +290,7 @@ bun src/cli.ts --check-challenge http://127.0.0.1:8080/v1/echo --network testnet
 不要直接从不可信挑战中复制预期值。匹配成功退出码为 0，否则为 1。
 
 库导出 `checkPaymentChallenge({ url, expectedNetwork, expectedAmount, expectedPayTo,
-timeoutMs? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402、Base64 编码的
+timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402、Base64 编码的
 `PAYMENT-REQUIRED`、x402 v2/exact、固定的 Kite 代币、精确金额与收款地址，以及正整数支付超时。
 逐项检查支付选项，任一完整匹配即通过；`matchedIndex` 指明匹配位置。没有匹配时，顶层
 `code` 是首个选项的失败原因，全部结果见 `alternatives`。不验证扩展字段和资源描述，
@@ -300,3 +300,9 @@ timeoutMs? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402、Base64 �
 默认请求超时 5 秒，库参数允许 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
 无需读取响应体，报告不回显远端原文或 URL。目标 URL 不应包含秘密。此工具用于运维，
 不要包装成对公众开放的任意 URL 探测服务。仅检查 GET 报价，不进行付款、上游交付或链上结算。
+
+库调用可传入 `signal: controller.signal`（`AbortController` 的信号）取消检查。
+已取消的信号不会发送请求；调用方取消返回 `cancelled`，截止时间到达返回 `timeout`，
+先发生的中断生效，报告不包含取消原因。检查结束后移除监听器和定时器。
+即使注入的 fetch 忽略取消信号，检查也会结束等待；迟到响应会丢弃并取消其响应体，
+迟到拒绝也会被处理。工具无法强行停止不配合的实现内部工作，定时器也不能打断阻塞事件循环的同步代码。
