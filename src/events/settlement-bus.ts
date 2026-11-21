@@ -10,15 +10,20 @@ export interface SettlementEvent {
 /** Synchronous in-process notifications; listener exceptions propagate to caller. */
 export class SettlementBus extends EventEmitter {
   public emitSettlement(event: SettlementEvent): boolean {
+    // 使用同一份快照校验和通知，避免 getter 重读或隐式数值转换改变事件含义。
+    const snapshot = { ...event };
     if (
-      !event.payer ||
-      !event.txHash ||
-      (typeof event.amount === "number" &&
-        !Number.isSafeInteger(event.amount)) ||
-      (typeof event.amount === "string" && !/^\d+$/.test(event.amount)) ||
-      BigInt(event.amount) < 0n
+      typeof snapshot.payer !== "string" ||
+      !snapshot.payer ||
+      typeof snapshot.txHash !== "string" ||
+      !snapshot.txHash ||
+      !["bigint", "number", "string"].includes(typeof snapshot.amount) ||
+      (typeof snapshot.amount === "number" &&
+        !Number.isSafeInteger(snapshot.amount)) ||
+      (typeof snapshot.amount === "string" && !/^\d+$/.test(snapshot.amount)) ||
+      BigInt(snapshot.amount) < 0n
     )
       throw new Error("Invalid settlement event");
-    return this.emit("settlement", Object.freeze({ ...event }));
+    return this.emit("settlement", Object.freeze(snapshot));
   }
 }
