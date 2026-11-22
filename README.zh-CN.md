@@ -306,3 +306,20 @@ timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402�
 先发生的中断生效，报告不包含取消原因。检查结束后移除监听器和定时器。
 即使注入的 fetch 忽略取消信号，检查也会结束等待；迟到响应会丢弃并取消其响应体，
 迟到拒绝也会被处理。工具无法强行停止不配合的实现内部工作，定时器也不能打断阻塞事件循环的同步代码。
+
+### 可重复的本地模拟验收
+
+在仓库运行 `npm run acceptance:local`（需要 Bun）。如需纯 JSON，先执行
+`npm run build`，再运行 `bun dist/local-acceptance.js --json`。全部断言通过退出码才为 0。
+安装包含本功能的 npm 包后，可运行
+`bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`。
+
+验收使用明确的模拟测试网配置、随机分配端口的本机 HTTP 服务和注入的模拟 facilitator，
+不读取商户环境变量，不需要钱包、私钥、余额或远程服务。串联配置预检、健康/就绪/发现探测、
+未付款挑战检查；故意错误的配置、网络、金额和收款地址必须被拒绝才算通过。
+任何验签、上游请求或结算调用都会使验收失败。正常或异常结束都会关闭服务，支持重复和并发运行，
+报告不回显原始异常。
+
+报告包含 `local-simulation-only` 范围声明、每项结果和支付调用计数。
+它只证明本地诊断集成，**不证明真实支付、上游交付、支付服务连通性或链上结算**，没有远程目标选项。
+CI 保存 `reports/local-acceptance.json`，并在安装打包文件后再次运行验收。
