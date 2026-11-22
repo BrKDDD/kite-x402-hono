@@ -23,7 +23,8 @@ export class RpcCircuitBreakerManager {
 
   constructor(urls: string[], config?: Partial<CircuitBreakerConfig>) {
     if (urls.length === 0) throw new Error("At least one RPC URL is required");
-    this.endpoints = urls.map((url) => ({
+    // 记录成败以 URL 为键；重复配置必须共用同一熔断状态，不能留下健康影子。
+    this.endpoints = [...new Set(urls)].map((url) => ({
       url,
       failureCount: 0,
       lastFailureTime: 0,
