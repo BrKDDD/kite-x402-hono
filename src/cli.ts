@@ -8,9 +8,29 @@ import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { checkConfig, formatConfigPreflight } from "./config-preflight.js";
 
+const isTimeoutFlag = (arg: string) =>
+  arg === "--timeout-ms" || arg.startsWith("--timeout-ms=");
+
+function diagnosticTimeout(args: string[]): { timeoutMs?: number } {
+  const flags = args.filter(isTimeoutFlag);
+  if (flags.length === 0) return {};
+  if (flags.length > 1) throw new Error("Supply --timeout-ms only once.");
+  const flag = flags[0]!;
+  const value =
+    flag === "--timeout-ms"
+      ? args[args.indexOf(flag) + 1]
+      : flag.slice("--timeout-ms=".length);
+  const timeoutMs = Number(value);
+  if (!value || !/^\d+$/.test(value) || timeoutMs < 1 || timeoutMs > 300000)
+    throw new Error(
+      "--timeout-ms must be an integer in 1–300000 milliseconds.",
+    );
+  return { timeoutMs };
+}
+
 if (process.argv.includes("--help")) {
   console.log(
-    "Usage: kite-x402-hono [--check-config [--json]]\n--check-config: validate configuration offline without starting the server\n--probe-service ORIGIN --network NETWORK: check public gateway diagnostics\n--check-challenge URL --network NETWORK --amount ATOMIC --pay-to ADDRESS: inspect an unpaid 402 challenge\n--json: machine-readable diagnostic report\nRequired: PAY_TO, UPSTREAM_URL\nOptional: KITE_NETWORK, PRICE_USD, PORT, FACILITATOR_URL, UPSTREAM_AUTH_HEADER, UPSTREAM_AUTH_VALUE, UPSTREAM_TIMEOUT_MS, MAX_BODY_BYTES, MAX_CONCURRENT_REQUESTS, FACILITATOR_TIMEOUT_MS, CORS_ORIGIN, SHUTDOWN_TIMEOUT_MS\nSee README.md for configuration and examples.",
+    "Usage: kite-x402-hono [--check-config [--json]]\n--check-config: validate configuration offline without starting the server\n--probe-service ORIGIN --network NETWORK: check public gateway diagnostics\n--check-challenge URL --network NETWORK --amount ATOMIC --pay-to ADDRESS: inspect an unpaid 402 challenge\n--timeout-ms MS: deadline for --probe-service or --check-challenge (1–300000; default 5000)\n--json: machine-readable diagnostic report\nRequired: PAY_TO, UPSTREAM_URL\nOptional: KITE_NETWORK, PRICE_USD, PORT, FACILITATOR_URL, UPSTREAM_AUTH_HEADER, UPSTREAM_AUTH_VALUE, UPSTREAM_TIMEOUT_MS, MAX_BODY_BYTES, MAX_CONCURRENT_REQUESTS, FACILITATOR_TIMEOUT_MS, CORS_ORIGIN, SHUTDOWN_TIMEOUT_MS\nSee README.md for configuration and examples.",
   );
 } else if (process.argv.includes("--check-challenge")) {
   try {
@@ -34,6 +54,7 @@ if (process.argv.includes("--help")) {
       expectedNetwork,
       expectedAmount,
       expectedPayTo,
+      ...diagnosticTimeout(args),
     });
     console.log(
       args.includes("--json")
@@ -64,7 +85,11 @@ if (process.argv.includes("--help")) {
       throw new Error(
         "Supply --probe-service ORIGIN and --network mainnet|testnet.",
       );
-    const report = await probeService({ origin, expectedNetwork });
+    const report = await probeService({
+      origin,
+      expectedNetwork,
+      ...diagnosticTimeout(args),
+    });
     console.log(
       args.includes("--json")
         ? JSON.stringify(report)
@@ -79,6 +104,12 @@ if (process.argv.includes("--help")) {
     else console.error(message);
     process.exitCode = 1;
   }
+} else if (process.argv.slice(2).some(isTimeoutFlag)) {
+  const message = "--timeout-ms requires --probe-service or --check-challenge.";
+  if (process.argv.includes("--json"))
+    console.log(JSON.stringify({ ok: false, error: message }));
+  else console.error(message);
+  process.exitCode = 1;
 } else if (process.argv.includes("--check-config")) {
   const report = checkConfig();
   console.log(
