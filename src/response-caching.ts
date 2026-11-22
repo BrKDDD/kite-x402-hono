@@ -106,9 +106,17 @@ export class ResponseCacheStore {
       expiresAt: now + ttlMs,
     };
 
-    next.set(key, entry);
+    // Materialise both copies before publishing the staged state. Both can
+    // throw DataCloneError on input from an untyped caller, so neither may run
+    // after this.cache = next: a failed write must leave the live cache, its
+    // FIFO order and the previous paid response untouched. Storing a clone
+    // rather than `entry` also severs references to caller-owned objects, so
+    // mutating them after a successful set() cannot poison a later get().
+    const stored = structuredClone(entry);
+    const snapshot = structuredClone(stored);
+    next.set(key, stored);
     this.cache = next;
-    return structuredClone(entry);
+    return snapshot;
   }
 
   public clear(): void {
