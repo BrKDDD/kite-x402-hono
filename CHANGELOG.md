@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add repeatable local simulated acceptance combining configuration, service and unpaid challenge diagnostics, negative policy assertions, ephemeral server cleanup and CI JSON evidence.
+
 - Make challenge deadlines independent of injected fetch abort support; add caller cancellation with redacted `cancelled` reports, late-response cleanup and listener removal.
 
 - Add `checkPaymentChallenge()` and `--check-challenge` to inspect unpaid x402 v2 offers against an explicit Kite network, atomic amount and recipient policy, with bounded parsing and per-alternative diagnostics.

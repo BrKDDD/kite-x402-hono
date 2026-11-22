@@ -450,3 +450,25 @@ const pending = checkPaymentChallenge({
 controller.abort(); // For example, when the operator closes the diagnostic view.
 const report = await pending; // code: "cancelled"
 ```
+
+### Repeatable local acceptance
+
+Run `npm run acceptance:local` from the checkout (Bun required). For clean JSON,
+run `npm run build` once, then `bun dist/local-acceptance.js --json`. Exit status
+is 0 only when every acceptance assertion passes. After installing a package
+containing this feature, run `bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`.
+
+The runner uses explicit synthetic testnet configuration, a loopback HTTP server
+on an automatically allocated port, and an injected simulated facilitator. It
+ignores merchant environment variables and needs no wallet, key, funds or remote
+service. It runs configuration preflight, health/readiness/discovery probes and
+an unpaid challenge check. Deliberate invalid configuration, network, amount and
+recipient cases must be rejected to pass. Any verification, upstream or settlement
+call fails acceptance. The server is stopped on success or failure, allowing repeat
+and concurrent runs. Raw execution errors are omitted from the report.
+
+Reports have scope `local-simulation-only`, named pass/fail checks and payment
+call counts. They demonstrate local diagnostic integration, **not real payments,
+upstream delivery, facilitator connectivity or on-chain settlement**. There is no
+remote-target option. CI saves `reports/local-acceptance.json` with its evidence
+artifacts and also runs the installed tarball's acceptance runner.
