@@ -253,7 +253,8 @@ export class TokenBucketRateLimiter {
       const elapsedSec = elapsedMs / 1000;
       const tokensToAdd = elapsedSec * this.rps;
       state.tokens = Math.min(this.burst, state.tokens + tokensToAdd);
-      state.lastRefill = now;
+      // 时钟回拨不能回退补充起点，否则恢复到旧时间时会重复获得额度。
+      state.lastRefill = Math.max(state.lastRefill, now);
     }
 
     if (state.tokens >= 1) {
