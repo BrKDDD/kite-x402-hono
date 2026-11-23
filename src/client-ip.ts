@@ -7,7 +7,9 @@ import { extractClientIp } from "./firewall.js";
 export function clientIpResolver(
   config: Config,
 ): (c: Context) => string | null {
-  const rules = config.trustedProxyCidrs ?? [];
+  // 固定安装时的信任策略，避免调用方清空列表后意外切入无限制转发头模式。
+  const rules = [...(config.trustedProxyCidrs ?? [])];
+  const trustProxyHeaders = config.trustProxyHeaders === true;
   const trusted = new BlockList();
   for (const rule of rules) {
     const [address, prefix, extra] = rule.split("/");
@@ -38,7 +40,7 @@ export function clientIpResolver(
       typeof c.env?.clientIp === "string" && isIP(c.env.clientIp)
         ? (c.env.clientIp as string)
         : null;
-    if (config.trustProxyHeaders !== true) return peer;
+    if (!trustProxyHeaders) return peer;
     // The explicit legacy flag is supported for an ingress that strips inbound
     // forwarding headers. CIDR rules additionally constrain trusted socket peers.
     if (!rules.length) {
