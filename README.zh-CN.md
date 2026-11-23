@@ -323,3 +323,19 @@ timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402�
 报告包含 `local-simulation-only` 范围声明、每项结果和支付调用计数。
 它只证明本地诊断集成，**不证明真实支付、上游交付、支付服务连通性或链上结算**，没有远程目标选项。
 CI 保存 `reports/local-acceptance.json`，并在安装打包文件后再次运行验收。
+
+### 模拟支付交付验收
+
+运行 `npm run acceptance:delivery`，或构建后运行
+`bun dist/delivery-acceptance.js --json`。安装包含本功能的包后使用
+`bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`。
+
+通过本机 HTTP 覆盖未付款、验签拒绝、交付成功、上游 503、结算拒绝五种场景。
+各场景使用独立网关，检查状态码及验签 → 上游 → 结算的准确调用顺序。
+成功时检查内容、no-store 和明确标记为模拟的收据；失败时不得泄露受保护内容，上游失败不得结算。
+每个场景无论成功或失败都会关闭本机服务。
+
+这是独立工具，不改变 `acceptance:local` 的零支付调用约定。使用无效签名样本及注入的模拟服务，
+**不执行密码学验签、不连接远程服务、不发送链上交易**。报告范围为 `simulated-delivery-only`，
+状态码和调用轨迹只属于模拟证据，不是钱包证明或交易凭证。不读取商户环境，不接受远程目标。
+CI 归档 `reports/delivery-acceptance.json`，并运行安装包内工具；全部场景通过退出 0，否则退出 1。

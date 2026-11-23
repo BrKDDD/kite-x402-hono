@@ -472,3 +472,23 @@ call counts. They demonstrate local diagnostic integration, **not real payments,
 upstream delivery, facilitator connectivity or on-chain settlement**. There is no
 remote-target option. CI saves `reports/local-acceptance.json` with its evidence
 artifacts and also runs the installed tarball's acceptance runner.
+
+### Simulated delivery acceptance
+
+Run `npm run acceptance:delivery`, or after building run
+`bun dist/delivery-acceptance.js --json`. Installed packages containing this
+feature support `bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`.
+The runner covers unpaid access, rejected verification, successful delivery,
+upstream 503 and refused settlement over loopback HTTP. Each scenario uses a
+fresh gateway and verifies status plus exact verify → upstream → settle ordering
+where appropriate. Success checks protected content, no-store and a clearly
+synthetic receipt; failures must withhold protected content, and upstream failure
+must not settle. Servers close after each scenario, including failures.
+
+This separate runner leaves `acceptance:local`'s zero-payment-call contract intact.
+It uses a deliberately invalid signature fixture and injected facilitator/upstream
+stubs; it does **not** perform cryptographic verification, contact a remote service
+or send a transaction. `simulated-delivery-only` JSON contains statuses and simulated
+call traces, not wallet proofs or transaction evidence. No merchant environment or
+remote target is accepted. CI archives `reports/delivery-acceptance.json` and runs
+the installed package. Exit 0 means every scenario passed; otherwise exit 1.
