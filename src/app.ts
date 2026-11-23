@@ -375,6 +375,20 @@ export function createApp(
     let supported;
     try {
       supported = await facilitator.getSupported();
+      // 远端 JSON 不受 TypeScript 类型约束；畸形能力数据也属于依赖不可用。
+      if (
+        !supported ||
+        !Array.isArray(supported.kinds) ||
+        supported.kinds.some(
+          (kind) =>
+            !kind ||
+            typeof kind.network !== "string" ||
+            typeof kind.scheme !== "string" ||
+            !Number.isSafeInteger(kind.x402Version) ||
+            kind.x402Version < 1,
+        )
+      )
+        throw new Error("Invalid facilitator supported response");
     } catch {
       return c.json({ ok: false, error: "facilitator_unavailable" }, 503, {
         "cache-control": "no-store",
