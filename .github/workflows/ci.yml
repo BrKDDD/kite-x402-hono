@@ -28,6 +28,8 @@ jobs:
       - run: npm run build
       - name: Run local simulated acceptance
         run: bun dist/local-acceptance.js --json > reports/local-acceptance.json
+      - name: Run simulated delivery acceptance
+        run: bun dist/delivery-acceptance.js --json > reports/delivery-acceptance.json
       - run: npm audit --omit=dev --audit-level=high
       - run: npm pack
       - name: Install and exercise the packed package
@@ -38,6 +40,7 @@ jobs:
           cd "$RUNNER_TEMP/package-smoke"
           npm init -y
           npm install "$PACKAGE"
+          bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json
           bun node_modules/kite-x402-hono/dist/local-acceptance.js --json
           bun node_modules/kite-x402-hono/dist/cli.js --help
           bun -e 'import { loadConfig, createApp } from "kite-x402-hono"; const app = createApp(loadConfig({PAY_TO: "0x1234567890123456789012345678901234567890", UPSTREAM_URL: "http://127.0.0.1:8081"})); const r = await app.request("/healthz"); if (r.status !== 200) process.exit(1); console.log(await r.text());'

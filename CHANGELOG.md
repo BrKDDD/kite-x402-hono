@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add standalone simulated delivery acceptance for unpaid/rejected/successful requests, upstream failures and settlement refusal, with HTTP outcomes, ordered call traces and CI evidence.
+
 - Add repeatable local simulated acceptance combining configuration, service and unpaid challenge diagnostics, negative policy assertions, ephemeral server cleanup and CI JSON evidence.
 
 - Make challenge deadlines independent of injected fetch abort support; add caller cancellation with redacted `cancelled` reports, late-response cleanup and listener removal.

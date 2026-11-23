@@ -57,7 +57,8 @@
     "test:coverage": "bun test --coverage",
     "check": "npm run typecheck && npm test && npm run build",
     "prepack": "npm run build",
-    "acceptance:local": "npm run build && bun dist/local-acceptance.js"
+    "acceptance:local": "npm run build && bun dist/local-acceptance.js",
+    "acceptance:delivery": "npm run build && bun dist/delivery-acceptance.js"
   },
   "dependencies": {
     "@x402/core": "2.29.0",
