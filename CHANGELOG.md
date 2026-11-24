@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.
+
 - Add standalone simulated delivery acceptance for unpaid/rejected/successful requests, upstream failures and settlement refusal, with HTTP outcomes, ordered call traces and CI evidence.
 
 - Add repeatable local simulated acceptance combining configuration, service and unpaid challenge diagnostics, negative policy assertions, ephemeral server cleanup and CI JSON evidence.

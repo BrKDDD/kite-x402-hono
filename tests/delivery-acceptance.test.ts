@@ -79,3 +79,28 @@ test("standalone delivery uses isolated config, reports JSON and exits", async (
     p.kill();
   }
 });
+
+test("paid retries preserve cached delivery and safely recover upstream failures", async () => {
+  const r = await runDeliveryAcceptance();
+  expect(r.retries).toEqual([
+    {
+      name: "cached_success",
+      ok: true,
+      statuses: [200, 200],
+      events: ["verify", "upstream", "settle"],
+    },
+    {
+      name: "upstream_recovery",
+      ok: true,
+      statuses: [503, 200, 200],
+      events: ["verify", "upstream", "verify", "upstream", "settle"],
+    },
+    {
+      name: "refused_nonce",
+      ok: true,
+      statuses: [402, 402],
+      events: ["verify", "upstream", "settle"],
+    },
+  ]);
+  expect(r.ok).toBe(true);
+});

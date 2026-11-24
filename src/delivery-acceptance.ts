@@ -1,4 +1,5 @@
 import type { PaymentPayload, PaymentRequired } from "@x402/core/types";
+import { PaymentNonceReplayGuard } from "./nonce-guard.js";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 
@@ -13,6 +14,12 @@ type Scenario = (typeof scenarios)[number];
 export interface DeliveryAcceptanceReport {
   ok: boolean;
   scope: "simulated-delivery-only";
+  retries: {
+    name: "cached_success" | "upstream_recovery" | "refused_nonce";
+    ok: boolean;
+    statuses: number[];
+    events: string[];
+  }[];
   scenarios: {
     name: Scenario;
     ok: boolean;
@@ -23,12 +30,14 @@ export interface DeliveryAcceptanceReport {
 
 /** Local synthetic fixtures only. No cryptographic verification or chain calls. */
 export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport> {
+  const retries: DeliveryAcceptanceReport["retries"] = [];
   const results: DeliveryAcceptanceReport["scenarios"] = [];
   for (const name of scenarios) {
     const events: string[] = [];
     let server: ReturnType<typeof Bun.serve> | undefined;
     let status: number | undefined;
     let ok = false;
+    let recovered = false;
     try {
       const config = loadConfig({
         PAY_TO: "0x1234567890123456789012345678901234567890",
@@ -40,6 +49,7 @@ export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport>
       });
       const payer = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
       const app = createApp(config, {
+        nonceGuard: new PaymentNonceReplayGuard(),
         facilitator: {
           getSupported: async () => ({
             kinds: [
@@ -76,7 +86,7 @@ export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport>
         },
         fetchUpstream: async () => {
           events.push("upstream");
-          return name === "upstream_failure"
+          return name === "upstream_failure" && !recovered
             ? Response.json(
                 { error: "synthetic_upstream_failure" },
                 { status: 503 },
@@ -124,11 +134,13 @@ export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport>
             },
           },
         };
-        response = await request({
+        const paidHeaders = {
+          "idempotency-key": "synthetic-delivery-retry",
           "payment-signature": Buffer.from(JSON.stringify(payload)).toString(
             "base64",
           ),
-        });
+        };
+        response = await request(paidHeaders);
         status = response.status;
         const body = await response.text();
         const expectedEvents =
@@ -158,6 +170,68 @@ export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport>
           if (name === "upstream_failure")
             ok &&= !response.headers.has("payment-response");
         }
+        if (
+          name === "success" ||
+          name === "upstream_failure" ||
+          name === "settlement_refused"
+        ) {
+          const before = [...events];
+          recovered = true;
+          const retry = await request(paidHeaders);
+          const retryBody = await retry.text();
+          const statuses = [status, retry.status];
+          let retryOk: boolean;
+          if (name === "settlement_refused") {
+            retryOk =
+              retry.status === 402 &&
+              !retryBody.includes("synthetic-protected-content") &&
+              !retry.headers.has("idempotent-replayed") &&
+              JSON.stringify(events) === JSON.stringify(before);
+          } else {
+            const receipt = retry.headers.get("payment-response");
+            retryOk =
+              retry.status === 200 &&
+              retryBody ===
+                JSON.stringify({ result: "synthetic-protected-content" }) &&
+              !!receipt;
+            if (name === "success") {
+              retryOk &&=
+                retry.headers.get("idempotent-replayed") === "true" &&
+                receipt === response.headers.get("payment-response") &&
+                JSON.stringify(events) === JSON.stringify(before);
+            } else {
+              retryOk &&=
+                !retry.headers.has("idempotent-replayed") &&
+                JSON.stringify(events) ===
+                  JSON.stringify([...before, "verify", "upstream", "settle"]);
+              const afterRecovery = [...events];
+              const replay = await request(paidHeaders);
+              statuses.push(replay.status);
+              retryOk &&=
+                replay.status === 200 &&
+                replay.headers.get("idempotent-replayed") === "true" &&
+                replay.headers.get("payment-response") === receipt;
+              const replayBody = await replay.text();
+              retryOk &&=
+                replayBody === retryBody &&
+                JSON.stringify(events) === JSON.stringify(afterRecovery);
+            }
+          }
+          retries.push({
+            name:
+              name === "success"
+                ? "cached_success"
+                : name === "upstream_failure"
+                  ? "upstream_recovery"
+                  : "refused_nonce",
+            ok: retryOk,
+            statuses,
+            events: [...events],
+          });
+          ok &&= retryOk;
+          // Preserve the initial attempt's trace in the original scenario report.
+          events.splice(0, events.length, ...before);
+        }
       }
     } catch {
       ok = false;
@@ -178,7 +252,11 @@ export async function runDeliveryAcceptance(): Promise<DeliveryAcceptanceReport>
     });
   }
   return {
-    ok: results.every((r) => r.ok),
+    ok:
+      results.every((r) => r.ok) &&
+      retries.length === 3 &&
+      retries.every((r) => r.ok),
+    retries,
     scope: "simulated-delivery-only",
     scenarios: results,
   };
@@ -195,6 +273,10 @@ if (import.meta.main) {
         ? JSON.stringify(report)
         : [
             "SIMULATED delivery only; no real signature verification or on-chain settlement.",
+            ...report.retries.map(
+              (r) =>
+                `${r.ok ? "PASS" : "FAIL"} ${r.name}: ${r.statuses.join(" -> ")}`,
+            ),
             ...report.scenarios.map(
               (s) =>
                 `${s.ok ? "PASS" : "FAIL"} ${s.name}: ${s.events.join(" -> ") || "no payment calls"}`,

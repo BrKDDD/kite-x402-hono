@@ -492,3 +492,15 @@ or send a transaction. `simulated-delivery-only` JSON contains statuses and simu
 call traces, not wallet proofs or transaction evidence. No merchant environment or
 remote target is accepted. CI archives `reports/delivery-acceptance.json` and runs
 the installed package. Exit 0 means every scenario passed; otherwise exit 1.
+
+Delivery acceptance also enables an explicit in-memory `PaymentNonceReplayGuard`
+and sends a fixed idempotency key with the same synthetic credential on retries.
+Its `retries` report checks: successful 200 replay retains the receipt without
+another upstream/settlement call; an upstream 503 can recover to 200, settle once,
+then replay from cache; refused settlement returns 402 on credential reuse without
+another delivery attempt. Initial `scenarios.events` remain initial-attempt traces;
+`retries.events` are cumulative across that scenario's attempts. All three checks
+must pass. These guarantees apply to the tested opt-in nonce-guard configuration
+and in-memory cache lifetime, not all deployments, restarts or distributed workers.
+A refused/uncertain settlement must not trigger blind payment retries; this tool
+only exercises a deterministic simulated refusal and is not a retrying payment client.
