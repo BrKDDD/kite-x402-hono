@@ -38,6 +38,7 @@ export class ReadinessProbe {
   private readonly cacheTtlMs: number;
   private readonly defaultTimeoutMs: number;
   private readonly targets: ProbeTarget[] = [];
+  private targetRevision = 0;
 
   constructor(options: ReadinessProbeOptions = {}) {
     for (const n of [options.cacheTtlMs ?? 5000, options.timeoutMs ?? 3000])
@@ -54,6 +55,9 @@ export class ReadinessProbe {
     )
       throw new Error("Invalid target timeout");
     this.lastSnapshot = null;
+    // 新调用不能复用旧目标集的在途探测；旧调用仍可完成自己的快照。
+    this.targetRevision++;
+    this.inFlight = undefined;
     this.targets.push({ ...target });
     return this;
   }
@@ -113,6 +117,8 @@ export class ReadinessProbe {
   }
   private async checkOnce(force: boolean): Promise<ReadinessSnapshot> {
     const now = Date.now();
+    const revision = this.targetRevision;
+    const targets = [...this.targets];
 
     if (
       !force &&
@@ -125,9 +131,7 @@ export class ReadinessProbe {
       };
     }
 
-    const results = await Promise.all(
-      this.targets.map((t) => this.probeTarget(t)),
-    );
+    const results = await Promise.all(targets.map((t) => this.probeTarget(t)));
     const targetMap: Record<string, TargetHealth> = {};
     let allHealthy = true;
     let anyHealthy = false;
@@ -142,7 +146,7 @@ export class ReadinessProbe {
     }
 
     let status: "UP" | "DEGRADED" | "DOWN" = "UP";
-    if (this.targets.length > 0) {
+    if (targets.length > 0) {
       if (allHealthy) {
         status = "UP";
       } else if (anyHealthy) {
@@ -159,7 +163,8 @@ export class ReadinessProbe {
       targets: targetMap,
     };
 
-    this.lastSnapshot = snapshot;
+    // 目标变更后完成的旧批次不能恢复过时缓存，也不能覆盖较新的结果。
+    if (revision === this.targetRevision) this.lastSnapshot = snapshot;
     return snapshot;
   }
 }
