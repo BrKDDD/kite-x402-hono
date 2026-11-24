@@ -111,26 +111,24 @@ export class TrafficShaper {
   }
 
   private async processNext() {
-    if (
-      this.activeCount >= this.config.maxConcurrency ||
-      this.queue.length === 0
+    // 回调可能在返回 Promise 前同步抛错；迭代排空当前空闲槽，避免递归耗尽栈。
+    while (
+      this.activeCount < this.config.maxConcurrency &&
+      this.queue.length > 0
     ) {
-      return;
-    }
+      const nextItem = this.queue.shift();
+      if (!nextItem) return;
+      clearTimeout(nextItem.timer);
 
-    const nextItem = this.queue.shift();
-    if (!nextItem) return;
-    clearTimeout(nextItem.timer);
-
-    this.activeCount++;
-    try {
-      const res = await nextItem.execute();
-      nextItem.resolve(res);
-    } catch (err) {
-      nextItem.reject(err);
-    } finally {
-      this.activeCount--;
-      this.processNext();
+      this.activeCount++;
+      try {
+        const res = await nextItem.execute();
+        nextItem.resolve(res);
+      } catch (err) {
+        nextItem.reject(err);
+      } finally {
+        this.activeCount--;
+      }
     }
   }
 }
