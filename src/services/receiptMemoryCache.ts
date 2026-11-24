@@ -27,7 +27,7 @@ export class ReceiptMemoryCache {
     ttlMs = this.defaultTtlMs,
   ): void {
     const now = Date.now();
-    // 只读取受支持字段一次；校验和持久保存必须使用同一份调用方快照。
+    // 只读取受支持字段一次；校验和缓存保存必须使用同一份调用方快照。
     const copy: CachedReceipt = {
       receiptId: data.receiptId,
       payer: data.payer,
