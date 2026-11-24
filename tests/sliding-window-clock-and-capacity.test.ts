@@ -21,8 +21,11 @@ function internalWindows(limiter: SlidingWindowLimiter): Map<string, number[]> {
 function internalExpiries(
   limiter: SlidingWindowLimiter,
 ): Array<{ key: string; expiresAt: number }> {
-  return (limiter as unknown as { expiries: Array<{ key: string; expiresAt: number }> })
-    .expiries;
+  return (
+    limiter as unknown as {
+      expiries: Array<{ key: string; expiresAt: number }>;
+    }
+  ).expiries;
 }
 
 test("clock rollback does not clear an active window or grant a fresh quota", () => {
@@ -85,7 +88,9 @@ test("expired keys are reclaimed and their heap entries removed", () => {
     now = 1_001_500; // beyond 1_000_000 + 1000ms window
     limiter.check("fresh");
     expect(internalWindows(limiter).has("old")).toBe(false);
-    expect(internalExpiries(limiter).map((entry) => entry.key)).toEqual(["fresh"]);
+    expect(internalExpiries(limiter).map((entry) => entry.key)).toEqual([
+      "fresh",
+    ]);
   } finally {
     Date.now = original;
   }
@@ -111,20 +116,25 @@ test("heap reclamation matches a full-scan reference over mixed clocks", () => {
         return false;
       }
       const effectiveNow = Math.max(at, live[live.length - 1] ?? at);
-      reference.set(key, [...live, effectiveNow].sort((a, b) => a - b));
+      reference.set(
+        key,
+        [...live, effectiveNow].sort((a, b) => a - b),
+      );
       return true;
     };
 
     let seed = 11;
     const random = (): number =>
-      ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
     for (let step = 0; step < 3_000; step++) {
       now += Math.floor(random() * 400) - 120; // includes backward steps
       const key = `k${Math.floor(random() * 40)}`;
       const shouldAllow = oracle(key, now);
       const result = limiter.check(key);
-      expect(result.allowed, `step ${step} ${key} now=${now}`).toBe(shouldAllow);
+      expect(result.allowed, `step ${step} ${key} now=${now}`).toBe(
+        shouldAllow,
+      );
 
       if (step % 97 === 0) {
         const implKeys = [...internalWindows(limiter).keys()].sort();
@@ -132,7 +142,9 @@ test("heap reclamation matches a full-scan reference over mixed clocks", () => {
           [...reference.keys()].sort(),
         );
         for (const [id, times] of reference) {
-          expect(internalWindows(limiter).get(id), `times for ${id}`).toEqual(times);
+          expect(internalWindows(limiter).get(id), `times for ${id}`).toEqual(
+            times,
+          );
         }
       }
     }
@@ -200,8 +212,12 @@ test("resetSeconds is based on the true oldest live timestamp after rollback", (
 test("constructor validates every limit", () => {
   expect(() => new SlidingWindowLimiter(0)).toThrow("Invalid window limits");
   expect(() => new SlidingWindowLimiter(1, 0)).toThrow("Invalid window limits");
-  expect(() => new SlidingWindowLimiter(1, 1, 1.5)).toThrow("Invalid window limits");
-  expect(() => new SlidingWindowLimiter(1, 1, -1)).toThrow("Invalid window limits");
+  expect(() => new SlidingWindowLimiter(1, 1, 1.5)).toThrow(
+    "Invalid window limits",
+  );
+  expect(() => new SlidingWindowLimiter(1, 1, -1)).toThrow(
+    "Invalid window limits",
+  );
   expect(() => new SlidingWindowLimiter(Number.MAX_SAFE_INTEGER + 1)).toThrow(
     "Invalid window limits",
   );
