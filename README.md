@@ -504,3 +504,20 @@ must pass. These guarantees apply to the tested opt-in nonce-guard configuration
 and in-memory cache lifetime, not all deployments, restarts or distributed workers.
 A refused/uncertain settlement must not trigger blind payment retries; this tool
 only exercises a deterministic simulated refusal and is not a retrying payment client.
+
+### Shareable acceptance summary
+
+Run `npm run acceptance:report` for a Markdown summary. For a clean file, build
+first, then run `bun dist/acceptance-report.js > acceptance-summary.md` or
+`bun dist/acceptance-report.js --json > acceptance-summary.json`. An installed
+package containing this feature also provides `node_modules/kite-x402-hono/dist/acceptance-report.js`.
+
+Both local suites run; all 18 known diagnostics/delivery/retry checks must pass.
+Missing, duplicate, nonboolean or failed checks fail the summary. Schema version 1
+projects only fixed check names, suite names and booleans; it omits raw responses,
+URLs, addresses, signatures, environment variables and exception details. CI archives
+the Markdown summary. Exit 0 means both suites passed; otherwise exit 1.
+
+The summary is local simulation evidence, not signed proof, real cryptographic
+verification, chain settlement or npm publication. It does not authenticate supplied
+report objects. Retry checks apply to the explicit in-memory nonce guard configuration.

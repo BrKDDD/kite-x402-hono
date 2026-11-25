@@ -346,3 +346,16 @@ CI 归档 `reports/delivery-acceptance.json`，并运行安装包内工具；全
 `scenarios.events` 保留首次尝试轨迹，`retries.events` 为该场景累计轨迹，三项必须全部通过。
 这些保证仅对应本次显式启用防重放和内存缓存的配置，不覆盖所有部署、进程重启或多实例。
 结算拒绝或状态不确定时不应盲目重付；工具只测试确定性的模拟拒绝，不是自动重付客户端。
+
+### 可分享的验收摘要
+
+运行 `npm run acceptance:report` 输出 Markdown。保存纯报告时，先构建，再运行
+`bun dist/acceptance-report.js > acceptance-summary.md`，或加 `--json` 保存 JSON。
+安装包含本功能的包后，可执行 `node_modules/kite-x402-hono/dist/acceptance-report.js`。
+
+工具运行两套本地验收，18 项固定检查必须全部通过；缺项、重复、非布尔值或失败均不会算通过。
+版本 1 摘要只保留固定检查名、套件名和布尔结果，不复制地址、URL、签名、环境变量、响应原文或异常。
+CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
+
+摘要只是模拟断言的汇总，不是签名证明、真实密码学验签、链上结算或 npm 发布凭证，
+也不认证输入报告的真实性。重试检查仅针对显式启用内存 nonce guard 的配置。

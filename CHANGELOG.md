@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.
+
 - Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.
 
 - Add standalone simulated delivery acceptance for unpaid/rejected/successful requests, upstream failures and settlement refusal, with HTTP outcomes, ordered call traces and CI evidence.
