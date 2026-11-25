@@ -30,6 +30,8 @@ jobs:
         run: bun dist/local-acceptance.js --json > reports/local-acceptance.json
       - name: Run simulated delivery acceptance
         run: bun dist/delivery-acceptance.js --json > reports/delivery-acceptance.json
+      - name: Create shareable acceptance summary
+        run: bun dist/acceptance-report.js > reports/acceptance-summary.md
       - run: npm audit --omit=dev --audit-level=high
       - run: npm pack
       - name: Install and exercise the packed package
@@ -40,6 +42,7 @@ jobs:
           cd "$RUNNER_TEMP/package-smoke"
           npm init -y
           npm install "$PACKAGE"
+          bun node_modules/kite-x402-hono/dist/acceptance-report.js --json
           bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json
           bun node_modules/kite-x402-hono/dist/local-acceptance.js --json
           bun node_modules/kite-x402-hono/dist/cli.js --help
