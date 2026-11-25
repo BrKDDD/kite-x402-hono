@@ -266,14 +266,14 @@ PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-revi
 
 ```sh
 bun src/cli.ts --probe-service http://127.0.0.1:8080 --network testnet
-bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --json
+bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --timeout-ms 10000 --json
 ```
 
 此功能发布到 npm 前请使用源码或构建后的命令。该客户端模式不需要 PAY_TO、UPSTREAM_URL；必须明确指定预期网络，支持主网/测试网、链 ID 和 CAIP-2，不可与 `--check-config` 同用。三个检查均通过退出码为 0；检查失败或参数非法为 1。
 
 与通用 ReadinessProbe 的 HTTP 状态探测不同，该工具只请求同一网关的 `/healthz`、`/readyz`、`/.well-known/x402`，校验响应结构、预期 Kite 网络、代币地址/精度及基本支付发现字段。能区分维护模式、支付服务不可用、不支持目标网络，以及连接失败、超时、重定向、HTTP 错误和网络/资产/协议不匹配。发现信息遵循本网关的格式，不代表通用 x402 标准。
 
-三个 GET 并发执行，不发送凭证、不跟随重定向；每个接口默认 5 秒截止时间（含响应体），响应最多 64 KiB。就绪接口可能在网关自身支付服务超时前先被探测工具判为超时。库调用 `probeService({ origin, expectedNetwork, timeoutMs })` 可设置 1–300000 毫秒超时；自定义 fetch 必须遵守取消信号。报告不保存原始响应体、URL、远端异常消息或密钥。仅 localhost 开发允许 HTTP，其他目标要求 HTTPS。
+三个 GET 并发执行，不发送凭证、不跟随重定向；每个接口默认 5 秒截止时间（含响应体），响应最多 64 KiB。就绪接口可能在网关自身支付服务超时前先被探测工具判为超时。可用 `--timeout-ms` 或库调用 `probeService({ origin, expectedNetwork, timeoutMs })` 设置 1–300000 毫秒的整数超时；自定义 fetch 必须遵守取消信号。报告不保存原始响应体、URL、远端异常消息或密钥。仅 localhost 开发允许 HTTP，其他目标要求 HTTPS。
 
 探测通过只说明诊断接口的报告符合预期，不调用付费接口，不证明上游可用、钱包所有权或真实支付成功，也不将价格和收款地址与商户策略比对。目标地址必须由操作人员控制，不应将任意 URL 探测暴露为公共接口。请求可能被网关记入日志，就绪检查会触发网关查询支付服务。
 
@@ -297,7 +297,7 @@ timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402�
 通过不代表钱包能签名或 facilitator 能完成结算。
 
 只发起一次不带凭证或支付签名的 GET，不跟随重定向。除本机 HTTP 外要求 HTTPS；
-默认请求超时 5 秒，库参数允许 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
+默认请求超时 5 秒，可通过 `--timeout-ms` 或库参数 `timeoutMs` 设置 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
 无需读取响应体，报告不回显远端原文或 URL。目标 URL 不应包含秘密。此工具用于运维，
 不要包装成对公众开放的任意 URL 探测服务。仅检查 GET 报价，不进行付款、上游交付或链上结算。
 

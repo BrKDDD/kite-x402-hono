@@ -387,14 +387,14 @@ After starting a gateway, run:
 
 ```sh
 bun src/cli.ts --probe-service http://127.0.0.1:8080 --network testnet
-bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --json
+bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --timeout-ms 10000 --json
 ```
 
 Use source or built commands until a package containing the feature is published. No PAY_TO or UPSTREAM_URL is required for this client mode. An explicit expected network is required (`mainnet`, `testnet`, chain ID or CAIP-2). It cannot be combined with `--check-config`. Exit 0 means all three diagnostics passed; exit 1 means a failed check or invalid arguments.
 
 Unlike generic `ReadinessProbe`, which checks transport status for arbitrary targets, this tool reads only `/healthz`, `/readyz` and `/.well-known/x402` on one operator-supplied gateway origin. It verifies HTTP 200 and response shape, expected Kite network, advertised token address/decimals and basic discovery payment fields. Readiness failures distinguish maintenance, facilitator unavailable and network not offered. Other outcomes include unreachable, timeout, redirect, HTTP error, invalid response and network/asset/protocol mismatch. The discovery schema is this wrapper's format, not a universal x402 schema.
 
-Requests are concurrent, unauthenticated GETs with redirects disabled, a 5-second per-endpoint deadline (including body) and 64 KiB response limit. A slow `/readyz` can time out even while the gateway's longer facilitator deadline is still running. Library callers can use `probeService({ origin, expectedNetwork, timeoutMs })` with a 1–300000 ms timeout, and `formatServiceProbe(report)`. Optional injected fetch implementations must honor abort signals. Reports omit raw bodies, URLs, server error messages and credentials. HTTP is allowed only for localhost development; production targets use HTTPS without paths, credentials, queries or fragments.
+Requests are concurrent, unauthenticated GETs with redirects disabled, a 5-second per-endpoint deadline (including body) and 64 KiB response limit. A slow `/readyz` can time out even while the gateway's longer facilitator deadline is still running. Set `--timeout-ms` to an integer from 1 to 300000 to override the deadline, or pass `timeoutMs` to `probeService({ origin, expectedNetwork, timeoutMs })` as a library caller. Optional injected fetch implementations must honor abort signals. Reports omit raw bodies, URLs, server error messages and credentials. HTTP is allowed only for localhost development; production targets use HTTPS without paths, credentials, queries or fragments.
 
 This tool reports what the gateway advertises; it does not call `/v1/*`, verify wallet ownership, prove upstream readiness or perform settlement. It does not compare price/receiver against a merchant policy. Use only operator-controlled target input; do not expose arbitrary target URLs as a public web service. Health/readiness requests may appear in access logs and readiness can cause the gateway to query its facilitator.
 
@@ -423,8 +423,9 @@ settle the offer.
 
 The checker makes one GET without credentials, payment signatures or redirects.
 HTTPS is required except localhost HTTP; the default request deadline is 5 seconds
-(configurable 1–300000 ms via the library). It bounds the encoded header to 64 KiB
-and alternatives to 100, cancels the unused body, and reports fixed codes without
+(configurable 1–300000 ms using `--timeout-ms` or the library's `timeoutMs`).
+It bounds the encoded header to 64 KiB and alternatives to 100, cancels the unused
+body, and reports fixed codes without
 remote content or URLs. Keep target URLs free of secrets and use this as an
 operator tool, not a public arbitrary-URL endpoint. Only GET offers are inspected;
 no payment, upstream delivery or on-chain settlement is tested.
