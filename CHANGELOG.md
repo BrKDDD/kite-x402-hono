@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix `ReceiptMemoryCache` TTL revival on clock rollback: expiry now uses a monotonic source (`performance.now()` by default) instead of `Date.now()`, with an injectable clock and an internal monotonic clamp. An expired-but-unread receipt can no longer become live again after a wall-clock step back, and stale entries are still reclaimed on `set()`. See docs/receipt-cache-monotonic-ttl.md.
 - Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.
 
 - Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.
