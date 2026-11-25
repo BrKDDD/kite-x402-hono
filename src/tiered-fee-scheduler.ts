@@ -48,9 +48,13 @@ export class TieredFeeScheduler {
     this.epochTtlMs = options.epochTtlMs ?? 30 * 24 * 60 * 60 * 1000;
     if (!Number.isFinite(this.epochTtlMs) || this.epochTtlMs <= 0)
       throw new Error("Invalid volume TTL");
-    const unsortedTiers = options.tiers ?? DEFAULT_FEE_TIERS;
+    // 阈值也使用同一份快照校验和排序，避免 getter 在校验后替换 bigint。
+    const unsortedTiers = (options.tiers ?? DEFAULT_FEE_TIERS).map((tier) => ({
+      ...tier,
+    }));
     for (const tier of unsortedTiers)
       if (
+        typeof tier.minCumulativeVolumeAtomic !== "bigint" ||
         tier.minCumulativeVolumeAtomic < 0n ||
         !Number.isInteger(tier.discountBps) ||
         tier.discountBps < 0 ||
@@ -58,11 +62,9 @@ export class TieredFeeScheduler {
       )
         throw new Error("Invalid fee tier");
     // Sort descending by minCumulativeVolumeAtomic for waterfall evaluation
-    this.tiers = unsortedTiers
-      .map((tier) => ({ ...tier }))
-      .sort((a, b) =>
-        b.minCumulativeVolumeAtomic > a.minCumulativeVolumeAtomic ? 1 : -1,
-      );
+    this.tiers = unsortedTiers.sort((a, b) =>
+      b.minCumulativeVolumeAtomic > a.minCumulativeVolumeAtomic ? 1 : -1,
+    );
   }
 
   /**
@@ -75,6 +77,9 @@ export class TieredFeeScheduler {
     if (!clientAddress) throw new Error("Missing client");
     const key = clientAddress.toLowerCase();
     const now = Date.now();
+    // JavaScript 调用方也必须满足 bigint 契约，避免把可转换值写入累计账目。
+    if (typeof settledAmountAtomic !== "bigint")
+      throw new Error("Settled amount must be a bigint");
     if (settledAmountAtomic < 0n) throw new Error("Negative settled amount");
     for (const [id, r] of this.clientVolumes)
       if (now - r.lastUpdatedMs > this.epochTtlMs)
@@ -117,6 +122,8 @@ export class TieredFeeScheduler {
         ? record.cumulativeVolumeAtomic
         : 0n;
 
+    if (typeof baseAmountAtomic !== "bigint")
+      throw new Error("Fee amount must be a bigint");
     if (baseAmountAtomic < 0n) throw new Error("Negative fee");
     // Find the matching tier
     let activeTier: FeeTier = {
