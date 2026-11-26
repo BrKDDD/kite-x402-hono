@@ -362,8 +362,6 @@ Valid incoming `X-Request-ID` values are reused; missing/invalid IDs receive a U
 
 `ReceiptMemoryCache` stores caller-verified receipts with TTL (milliseconds) and LRU eviction. Both `get` and `has` refresh recency. Inputs/outputs are copied; atomic amounts accept bigint, decimal integer strings, or safe integers (uint256 range). This local cache does not verify payments, provide durable replay protection, or separate chains/assets: callers must scope instances and receipt IDs appropriately. Use the existing `ReceiptStore`/`SettlementReconciler` for indexed receipt queries and reconciliation.
 
-`ReceiptStore` retention is now backed by a deadline-ordered index: reads reclaim only lapsed receipts instead of scanning the whole archive. At 5,000 retained entries `getByTxHash()` drops from ~236 µs to ~0.4 µs per call (about 590×), while retention, capacity eviction and out-of-order timestamps keep the same observable behaviour. See `docs/receipt-store-cleanup.md`.
-
 `corsAllowlistValidator({ allowedDomains, credentials: false })` is optional middleware for explicit integration, replacing other CORS middleware. Strings are exact serialized HTTP(S) origins; regexes must match the whole origin, with global/sticky flags removed. Enable credentials explicitly only for trusted origins. Only valid preflights return 204; denied preflights return 403; ordinary OPTIONS continues downstream. Payment-Signature and Idempotency-Key are allowed, and payment response headers are exposed. CORS does not authenticate callers or block non-browser requests. Neither utility is automatically enabled by createApp.
 
 ### Offline configuration preflight
