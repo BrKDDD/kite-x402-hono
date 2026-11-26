@@ -19,7 +19,7 @@ import {
   createRateLimiterMiddleware,
   type RateLimiterOptions,
 } from "./rate-limiter.js";
-import { evaluateIpFilter } from "./firewall.js";
+import { createIpFirewall } from "./firewall.js";
 import { IdempotencyCache } from "./idempotency.js";
 import { PaymentNonceReplayGuard } from "./nonce-guard.js";
 import { createPaymentProtection } from "./payment-protection.js";
@@ -144,13 +144,14 @@ export function createApp(
       return corsMiddleware(c, async () => {});
     });
   }
-  if (config.firewallAllowlist?.length || config.firewallBlocklist?.length) {
+  const checkFirewall = createIpFirewall({
+    allowlist: config.firewallAllowlist,
+    blocklist: config.firewallBlocklist,
+  });
+  if (checkFirewall) {
     app.use("/v1/*", async (c, next) => {
       const ip = getClientIp(c);
-      const verdict = evaluateIpFilter(ip, {
-        allowlist: config.firewallAllowlist,
-        blocklist: config.firewallBlocklist,
-      });
+      const verdict = checkFirewall(ip);
       if (!verdict.allowed)
         return c.json(
           {

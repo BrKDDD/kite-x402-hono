@@ -107,6 +107,62 @@ export function matchesIpRule(clientIp: string, rule: string): boolean {
   return list.check(client, family === 4 ? "ipv4" : "ipv6");
 }
 
+function parseClientIp(
+  clientIp: string | null | undefined,
+): { cleanIp: string; family: "ipv4" | "ipv6" } | null {
+  if (!clientIp) return null;
+  const cleanIp = clientIp.trim();
+  const version = isIP(cleanIp);
+  if (!version) return null;
+  return { cleanIp, family: version === 4 ? "ipv4" : "ipv6" };
+}
+
+function compileRuleList(
+  rules: readonly string[] | undefined,
+): BlockList | null {
+  const snapshot = [...(rules ?? [])];
+  if (snapshot.length === 0) return null;
+  const compiled = new BlockList();
+  for (const rule of snapshot) {
+    const parsed = typeof rule === "string" ? parseRule(rule) : null;
+    if (!parsed) {
+      throw new Error(`Invalid firewall IP or CIDR: ${String(rule)}`);
+    }
+    if (parsed.prefix === undefined) {
+      compiled.addAddress(parsed.address, parsed.family);
+    } else {
+      compiled.addSubnet(parsed.address, parsed.prefix, parsed.family);
+    }
+  }
+  return compiled;
+}
+
+/**
+ * Compiles and snapshots firewall rules once so invalid rules fail configuration
+ * and caller-owned array mutations cannot alter an installed policy.
+ */
+export function createIpFirewall(
+  config: IpFilterConfig,
+): ((clientIp: string | null | undefined) => IpFilterVerdict) | null {
+  const blocklist = compileRuleList(config.blocklist);
+  const allowlist = compileRuleList(config.allowlist);
+  if (!blocklist && !allowlist) return null;
+
+  return (clientIp) => {
+    const parsed = parseClientIp(clientIp);
+    if (!parsed) {
+      return { allowed: false, reason: "invalid_ip" };
+    }
+    if (blocklist?.check(parsed.cleanIp, parsed.family)) {
+      return { allowed: false, reason: "blocked_by_blocklist" };
+    }
+    if (allowlist && !allowlist.check(parsed.cleanIp, parsed.family)) {
+      return { allowed: false, reason: "not_in_allowlist" };
+    }
+    return { allowed: true };
+  };
+}
+
 /**
  * Evaluates a client IP against configured allowlists and blocklists.
  */
@@ -114,36 +170,11 @@ export function evaluateIpFilter(
   clientIp: string | null | undefined,
   config: IpFilterConfig,
 ): IpFilterVerdict {
-  if (!clientIp) {
-    return { allowed: false, reason: "invalid_ip" };
-  }
-
-  const cleanIp = clientIp.trim();
-  if (!isIP(cleanIp)) {
-    return { allowed: false, reason: "invalid_ip" };
-  }
-
-  // 1. Check explicit blocklist first (highest priority)
-  if (config.blocklist && config.blocklist.length > 0) {
-    const isBlocked = config.blocklist.some((rule) =>
-      matchesIpRule(cleanIp, rule),
-    );
-    if (isBlocked) {
-      return { allowed: false, reason: "blocked_by_blocklist" };
-    }
-  }
-
-  // 2. Check allowlist if configured (whitelist mode)
-  if (config.allowlist && config.allowlist.length > 0) {
-    const isAllowed = config.allowlist.some((rule) =>
-      matchesIpRule(cleanIp, rule),
-    );
-    if (!isAllowed) {
-      return { allowed: false, reason: "not_in_allowlist" };
-    }
-  }
-
-  return { allowed: true };
+  const check = createIpFirewall(config);
+  if (check) return check(clientIp);
+  return parseClientIp(clientIp)
+    ? { allowed: true }
+    : { allowed: false, reason: "invalid_ip" };
 }
 
 /**
