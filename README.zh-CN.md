@@ -359,3 +359,5 @@ CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
 
 摘要只是模拟断言的汇总，不是签名证明、真实密码学验签、链上结算或 npm 发布凭证，
 也不认证输入报告的真实性。重试检查仅针对显式启用内存 nonce guard 的配置。
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
