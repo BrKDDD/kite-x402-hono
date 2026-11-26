@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add fixed acceptance check reason codes and failure-only troubleshooting guidance, with a bilingual reproduction and sharing runbook.
+
+- Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.
+
+- Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.
+
+- Add standalone simulated delivery acceptance for unpaid/rejected/successful requests, upstream failures and settlement refusal, with HTTP outcomes, ordered call traces and CI evidence.
+
+- Add repeatable local simulated acceptance combining configuration, service and unpaid challenge diagnostics, negative policy assertions, ephemeral server cleanup and CI JSON evidence.
+
 - Make challenge deadlines independent of injected fetch abort support; add caller cancellation with redacted `cancelled` reports, late-response cleanup and listener removal.
 
 - Add `checkPaymentChallenge()` and `--check-challenge` to inspect unpaid x402 v2 offers against an explicit Kite network, atomic amount and recipient policy, with bounded parsing and per-alternative diagnostics.

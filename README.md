@@ -450,3 +450,76 @@ const pending = checkPaymentChallenge({
 controller.abort(); // For example, when the operator closes the diagnostic view.
 const report = await pending; // code: "cancelled"
 ```
+
+### Repeatable local acceptance
+
+Run `npm run acceptance:local` from the checkout (Bun required). For clean JSON,
+run `npm run build` once, then `bun dist/local-acceptance.js --json`. Exit status
+is 0 only when every acceptance assertion passes. After installing a package
+containing this feature, run `bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`.
+
+The runner uses explicit synthetic testnet configuration, a loopback HTTP server
+on an automatically allocated port, and an injected simulated facilitator. It
+ignores merchant environment variables and needs no wallet, key, funds or remote
+service. It runs configuration preflight, health/readiness/discovery probes and
+an unpaid challenge check. Deliberate invalid configuration, network, amount and
+recipient cases must be rejected to pass. Any verification, upstream or settlement
+call fails acceptance. The server is stopped on success or failure, allowing repeat
+and concurrent runs. Raw execution errors are omitted from the report.
+
+Reports have scope `local-simulation-only`, named pass/fail checks and payment
+call counts. They demonstrate local diagnostic integration, **not real payments,
+upstream delivery, facilitator connectivity or on-chain settlement**. There is no
+remote-target option. CI saves `reports/local-acceptance.json` with its evidence
+artifacts and also runs the installed tarball's acceptance runner.
+
+### Simulated delivery acceptance
+
+Run `npm run acceptance:delivery`, or after building run
+`bun dist/delivery-acceptance.js --json`. Installed packages containing this
+feature support `bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`.
+The runner covers unpaid access, rejected verification, successful delivery,
+upstream 503 and refused settlement over loopback HTTP. Each scenario uses a
+fresh gateway and verifies status plus exact verify → upstream → settle ordering
+where appropriate. Success checks protected content, no-store and a clearly
+synthetic receipt; failures must withhold protected content, and upstream failure
+must not settle. Servers close after each scenario, including failures.
+
+This separate runner leaves `acceptance:local`'s zero-payment-call contract intact.
+It uses a deliberately invalid signature fixture and injected facilitator/upstream
+stubs; it does **not** perform cryptographic verification, contact a remote service
+or send a transaction. `simulated-delivery-only` JSON contains statuses and simulated
+call traces, not wallet proofs or transaction evidence. No merchant environment or
+remote target is accepted. CI archives `reports/delivery-acceptance.json` and runs
+the installed package. Exit 0 means every scenario passed; otherwise exit 1.
+
+Delivery acceptance also enables an explicit in-memory `PaymentNonceReplayGuard`
+and sends a fixed idempotency key with the same synthetic credential on retries.
+Its `retries` report checks: successful 200 replay retains the receipt without
+another upstream/settlement call; an upstream 503 can recover to 200, settle once,
+then replay from cache; refused settlement returns 402 on credential reuse without
+another delivery attempt. Initial `scenarios.events` remain initial-attempt traces;
+`retries.events` are cumulative across that scenario's attempts. All three checks
+must pass. These guarantees apply to the tested opt-in nonce-guard configuration
+and in-memory cache lifetime, not all deployments, restarts or distributed workers.
+A refused/uncertain settlement must not trigger blind payment retries; this tool
+only exercises a deterministic simulated refusal and is not a retrying payment client.
+
+### Shareable acceptance summary
+
+Run `npm run acceptance:report` for a Markdown summary. For a clean file, build
+first, then run `bun dist/acceptance-report.js > acceptance-summary.md` or
+`bun dist/acceptance-report.js --json > acceptance-summary.json`. An installed
+package containing this feature also provides `node_modules/kite-x402-hono/dist/acceptance-report.js`.
+
+Both local suites run; all 18 known diagnostics/delivery/retry checks must pass.
+Missing, duplicate, nonboolean or failed checks fail the summary. Schema version 1
+projects only fixed check names, suite names and booleans; it omits raw responses,
+URLs, addresses, signatures, environment variables and exception details. CI archives
+the Markdown summary. Exit 0 means both suites passed; otherwise exit 1.
+
+The summary is local simulation evidence, not signed proof, real cryptographic
+verification, chain settlement or npm publication. It does not authenticate supplied
+report objects. Retry checks apply to the explicit in-memory nonce guard configuration.
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.

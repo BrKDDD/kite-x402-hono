@@ -306,3 +306,58 @@ timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402�
 先发生的中断生效，报告不包含取消原因。检查结束后移除监听器和定时器。
 即使注入的 fetch 忽略取消信号，检查也会结束等待；迟到响应会丢弃并取消其响应体，
 迟到拒绝也会被处理。工具无法强行停止不配合的实现内部工作，定时器也不能打断阻塞事件循环的同步代码。
+
+### 可重复的本地模拟验收
+
+在仓库运行 `npm run acceptance:local`（需要 Bun）。如需纯 JSON，先执行
+`npm run build`，再运行 `bun dist/local-acceptance.js --json`。全部断言通过退出码才为 0。
+安装包含本功能的 npm 包后，可运行
+`bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`。
+
+验收使用明确的模拟测试网配置、随机分配端口的本机 HTTP 服务和注入的模拟 facilitator，
+不读取商户环境变量，不需要钱包、私钥、余额或远程服务。串联配置预检、健康/就绪/发现探测、
+未付款挑战检查；故意错误的配置、网络、金额和收款地址必须被拒绝才算通过。
+任何验签、上游请求或结算调用都会使验收失败。正常或异常结束都会关闭服务，支持重复和并发运行，
+报告不回显原始异常。
+
+报告包含 `local-simulation-only` 范围声明、每项结果和支付调用计数。
+它只证明本地诊断集成，**不证明真实支付、上游交付、支付服务连通性或链上结算**，没有远程目标选项。
+CI 保存 `reports/local-acceptance.json`，并在安装打包文件后再次运行验收。
+
+### 模拟支付交付验收
+
+运行 `npm run acceptance:delivery`，或构建后运行
+`bun dist/delivery-acceptance.js --json`。安装包含本功能的包后使用
+`bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`。
+
+通过本机 HTTP 覆盖未付款、验签拒绝、交付成功、上游 503、结算拒绝五种场景。
+各场景使用独立网关，检查状态码及验签 → 上游 → 结算的准确调用顺序。
+成功时检查内容、no-store 和明确标记为模拟的收据；失败时不得泄露受保护内容，上游失败不得结算。
+每个场景无论成功或失败都会关闭本机服务。
+
+这是独立工具，不改变 `acceptance:local` 的零支付调用约定。使用无效签名样本及注入的模拟服务，
+**不执行密码学验签、不连接远程服务、不发送链上交易**。报告范围为 `simulated-delivery-only`，
+状态码和调用轨迹只属于模拟证据，不是钱包证明或交易凭证。不读取商户环境，不接受远程目标。
+CI 归档 `reports/delivery-acceptance.json`，并运行安装包内工具；全部场景通过退出 0，否则退出 1。
+
+交付验收现在显式启用内存 `PaymentNonceReplayGuard`，重试保持相同幂等键和模拟凭证。
+报告的 `retries` 检查三项：成功 200 后复用相同收据且不再次交付/结算；上游 503 后恢复为 200，
+只结算一次，再次重试命中缓存；结算拒绝后重复凭证返回 402，不再次交付。
+`scenarios.events` 保留首次尝试轨迹，`retries.events` 为该场景累计轨迹，三项必须全部通过。
+这些保证仅对应本次显式启用防重放和内存缓存的配置，不覆盖所有部署、进程重启或多实例。
+结算拒绝或状态不确定时不应盲目重付；工具只测试确定性的模拟拒绝，不是自动重付客户端。
+
+### 可分享的验收摘要
+
+运行 `npm run acceptance:report` 输出 Markdown。保存纯报告时，先构建，再运行
+`bun dist/acceptance-report.js > acceptance-summary.md`，或加 `--json` 保存 JSON。
+安装包含本功能的包后，可执行 `node_modules/kite-x402-hono/dist/acceptance-report.js`。
+
+工具运行两套本地验收，18 项固定检查必须全部通过；缺项、重复、非布尔值或失败均不会算通过。
+版本 1 摘要只保留固定检查名、套件名和布尔结果，不复制地址、URL、签名、环境变量、响应原文或异常。
+CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
+
+摘要只是模拟断言的汇总，不是签名证明、真实密码学验签、链上结算或 npm 发布凭证，
+也不认证输入报告的真实性。重试检查仅针对显式启用内存 nonce guard 的配置。
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.

@@ -82,7 +82,8 @@ export class IdempotencyCache {
       if (existing.state === "in_flight") {
         return { status: "in_flight" };
       }
-      return { status: "cached", response: existing.response };
+      // 调用方可修改返回数据，但不能改写后续重放的已结算响应。
+      return { status: "cached", response: structuredClone(existing.response) };
     }
 
     if (this.records.size >= this.maxKeys) {
@@ -146,7 +147,8 @@ export class IdempotencyCache {
       response: {
         statusCode,
         headers: headerEntries,
-        body: body.slice(),
+        // Buffer 也是 Uint8Array，但其 slice 仅创建视图；显式复制实际可见字节。
+        body: new Uint8Array(body),
         cachedAt: now,
         expiresAt: now + ttlMs,
       },
