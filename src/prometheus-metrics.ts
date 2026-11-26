@@ -35,6 +35,8 @@ export class PrometheusMetricsExporter {
   }
 
   public incPaymentSettled(amountAtomic: bigint, success: boolean): void {
+    if (typeof amountAtomic !== "bigint")
+      throw new TypeError("Settled volume must be a bigint");
     if (amountAtomic < 0n) throw new Error("Negative settled volume");
     if (success) {
       this.paymentsSettled += 1;

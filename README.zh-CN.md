@@ -240,6 +240,8 @@ AI 工具参与了开发；BrK 审核并负责此贡献。项目自己的 Wrappe
 
 PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-review-2026-11-06.md)。新增工具需要显式接入应用。
 
+可选组件 `PrometheusMetricsExporter` 的 `incPaymentSettled` 方法要求成功和失败结算均传入非负 `bigint` 金额。金额无效时，方法会在更新任何指标前抛出异常。
+
 ### 可选的结构化错误处理器
 
 通过 `app.onError(structuredErrorLogger({ sink: console.error }))` 显式注册；不要使用 `app.use`，因为 Hono 会先处理路由异常。该工具从包根目录导出，注册会替换原有异常处理器，所有捕获异常统一返回 500（包括抛出的 HTTP 异常）；业务响应应正常返回，或另行组合异常策略。默认 `createApp()` 行为保持不变。

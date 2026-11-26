@@ -31,4 +31,22 @@ describe("PrometheusMetricsExporter", () => {
     expect(snapshot.settleFailuresTotal).toBe(1);
     expect(snapshot.settledVolumeAtomic).toBe(500n);
   });
+
+  it.each([1, "2"])(
+    "rejects non-bigint amount %p before updating settlement metrics",
+    (invalid) => {
+      const exporter = new PrometheusMetricsExporter();
+      exporter.incPaymentSettled(5n, true);
+      const before = exporter.getSnapshot();
+      for (const success of [true, false]) {
+        // JavaScript consumers can call the exporter without TypeScript checks.
+        expect(() =>
+          exporter.incPaymentSettled(invalid as unknown as bigint, success),
+        ).toThrow();
+        expect(exporter.getSnapshot()).toEqual(before);
+      }
+      exporter.incPaymentSettled(3n, true);
+      expect(exporter.getSnapshot().settledVolumeAtomic).toBe(8n);
+    },
+  );
 });
