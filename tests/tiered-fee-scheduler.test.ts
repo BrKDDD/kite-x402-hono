@@ -36,6 +36,34 @@ describe("TieredFeeScheduler", () => {
     expect(evalResult.finalAmountAtomic).toBe(9_000_000n);
   });
 
+  it("expires client record queries at the same boundary as fee evaluation", () => {
+    const scheduler = new TieredFeeScheduler({ epochTtlMs: 10 });
+    const clock = spyOn(Date, "now").mockReturnValue(1000);
+    try {
+      const record = scheduler.recordPayment("ClientA", 15_000_000n);
+
+      clock.mockReturnValue(1010);
+      expect(scheduler.getClientRecord("CLIENTA")).toEqual(record);
+      expect(
+        scheduler.calculateFee("clienta", 100n).cumulativeVolumeAtomic,
+      ).toBe(record.cumulativeVolumeAtomic);
+
+      clock.mockReturnValue(1011);
+      expect(scheduler.getClientRecord("CLIENTA")).toBeUndefined();
+      expect(
+        scheduler.calculateFee("clienta", 100n).cumulativeVolumeAtomic,
+      ).toBe(0n);
+
+      scheduler.recordPayment("ClientA", 7n);
+      expect(scheduler.getClientRecord("clienta")).toMatchObject({
+        cumulativeVolumeAtomic: 7n,
+        txCount: 1,
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("handles custom tier thresholds and epoch expiration", () => {
     const scheduler = new TieredFeeScheduler({
       tiers: [
