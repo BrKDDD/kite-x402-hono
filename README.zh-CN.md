@@ -259,3 +259,105 @@ PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-revi
 预检复用 `loadConfig` 的启动校验规则，一次报告多个字段错误。输出仅包含字段名、固定修复提示和 Kite 网络、资产、最小单位价格，不打印密钥、原始 URL 或解析异常内容。未设置的可选字段保持启动默认值，布尔和日志设置沿用原有解释规则。修正错误后再次运行可查看完整摘要和部署警告。代码调用可导入 `checkConfig(env)`、`formatConfigPreflight(report)`。
 
 这是离线配置检查，不监听端口、不访问上游或支付服务、不验证钱包所有权，也不执行付款。未知或拼错的环境变量名不在检查范围内。服务连通性和真实支付验收需要另行进行。
+
+### 网关服务探测
+
+启动网关后运行：
+
+```sh
+bun src/cli.ts --probe-service http://127.0.0.1:8080 --network testnet
+bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --json
+```
+
+此功能发布到 npm 前请使用源码或构建后的命令。该客户端模式不需要 PAY_TO、UPSTREAM_URL；必须明确指定预期网络，支持主网/测试网、链 ID 和 CAIP-2，不可与 `--check-config` 同用。三个检查均通过退出码为 0；检查失败或参数非法为 1。
+
+与通用 ReadinessProbe 的 HTTP 状态探测不同，该工具只请求同一网关的 `/healthz`、`/readyz`、`/.well-known/x402`，校验响应结构、预期 Kite 网络、代币地址/精度及基本支付发现字段。能区分维护模式、支付服务不可用、不支持目标网络，以及连接失败、超时、重定向、HTTP 错误和网络/资产/协议不匹配。发现信息遵循本网关的格式，不代表通用 x402 标准。
+
+三个 GET 并发执行，不发送凭证、不跟随重定向；每个接口默认 5 秒截止时间（含响应体），响应最多 64 KiB。就绪接口可能在网关自身支付服务超时前先被探测工具判为超时。库调用 `probeService({ origin, expectedNetwork, timeoutMs })` 可设置 1–300000 毫秒超时；自定义 fetch 必须遵守取消信号。报告不保存原始响应体、URL、远端异常消息或密钥。仅 localhost 开发允许 HTTP，其他目标要求 HTTPS。
+
+探测通过只说明诊断接口的报告符合预期，不调用付费接口，不证明上游可用、钱包所有权或真实支付成功，也不将价格和收款地址与商户策略比对。目标地址必须由操作人员控制，不应将任意 URL 探测暴露为公共接口。请求可能被网关记入日志，就绪检查会触发网关查询支付服务。
+
+### 检查未付款的 402 支付挑战
+
+指定由你控制的 GET 接口，以及独立确认的预期支付策略：
+
+```sh
+bun src/cli.ts --check-challenge http://127.0.0.1:8080/v1/echo --network testnet --amount 1000000000000000 --pay-to 0x1234567890123456789012345678901234567890 --json
+```
+
+`--amount` 是**精确的代币最小单位整数**，不是小数价格。测试网 0.001 pieUSD
+对应 `1000000000000000`；主网 0.001 USDC.e 对应 `1000`。请替换为你的预期收款地址，
+不要直接从不可信挑战中复制预期值。匹配成功退出码为 0，否则为 1。
+
+库导出 `checkPaymentChallenge({ url, expectedNetwork, expectedAmount, expectedPayTo,
+timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402、Base64 编码的
+`PAYMENT-REQUIRED`、x402 v2/exact、固定的 Kite 代币、精确金额与收款地址，以及正整数支付超时。
+逐项检查支付选项，任一完整匹配即通过；`matchedIndex` 指明匹配位置。没有匹配时，顶层
+`code` 是首个选项的失败原因，全部结果见 `alternatives`。不验证扩展字段和资源描述，
+通过不代表钱包能签名或 facilitator 能完成结算。
+
+只发起一次不带凭证或支付签名的 GET，不跟随重定向。除本机 HTTP 外要求 HTTPS；
+默认请求超时 5 秒，库参数允许 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
+无需读取响应体，报告不回显远端原文或 URL。目标 URL 不应包含秘密。此工具用于运维，
+不要包装成对公众开放的任意 URL 探测服务。仅检查 GET 报价，不进行付款、上游交付或链上结算。
+
+库调用可传入 `signal: controller.signal`（`AbortController` 的信号）取消检查。
+已取消的信号不会发送请求；调用方取消返回 `cancelled`，截止时间到达返回 `timeout`，
+先发生的中断生效，报告不包含取消原因。检查结束后移除监听器和定时器。
+即使注入的 fetch 忽略取消信号，检查也会结束等待；迟到响应会丢弃并取消其响应体，
+迟到拒绝也会被处理。工具无法强行停止不配合的实现内部工作，定时器也不能打断阻塞事件循环的同步代码。
+
+### 可重复的本地模拟验收
+
+在仓库运行 `npm run acceptance:local`（需要 Bun）。如需纯 JSON，先执行
+`npm run build`，再运行 `bun dist/local-acceptance.js --json`。全部断言通过退出码才为 0。
+安装包含本功能的 npm 包后，可运行
+`bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`。
+
+验收使用明确的模拟测试网配置、随机分配端口的本机 HTTP 服务和注入的模拟 facilitator，
+不读取商户环境变量，不需要钱包、私钥、余额或远程服务。串联配置预检、健康/就绪/发现探测、
+未付款挑战检查；故意错误的配置、网络、金额和收款地址必须被拒绝才算通过。
+任何验签、上游请求或结算调用都会使验收失败。正常或异常结束都会关闭服务，支持重复和并发运行，
+报告不回显原始异常。
+
+报告包含 `local-simulation-only` 范围声明、每项结果和支付调用计数。
+它只证明本地诊断集成，**不证明真实支付、上游交付、支付服务连通性或链上结算**，没有远程目标选项。
+CI 保存 `reports/local-acceptance.json`，并在安装打包文件后再次运行验收。
+
+### 模拟支付交付验收
+
+运行 `npm run acceptance:delivery`，或构建后运行
+`bun dist/delivery-acceptance.js --json`。安装包含本功能的包后使用
+`bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`。
+
+通过本机 HTTP 覆盖未付款、验签拒绝、交付成功、上游 503、结算拒绝五种场景。
+各场景使用独立网关，检查状态码及验签 → 上游 → 结算的准确调用顺序。
+成功时检查内容、no-store 和明确标记为模拟的收据；失败时不得泄露受保护内容，上游失败不得结算。
+每个场景无论成功或失败都会关闭本机服务。
+
+这是独立工具，不改变 `acceptance:local` 的零支付调用约定。使用无效签名样本及注入的模拟服务，
+**不执行密码学验签、不连接远程服务、不发送链上交易**。报告范围为 `simulated-delivery-only`，
+状态码和调用轨迹只属于模拟证据，不是钱包证明或交易凭证。不读取商户环境，不接受远程目标。
+CI 归档 `reports/delivery-acceptance.json`，并运行安装包内工具；全部场景通过退出 0，否则退出 1。
+
+交付验收现在显式启用内存 `PaymentNonceReplayGuard`，重试保持相同幂等键和模拟凭证。
+报告的 `retries` 检查三项：成功 200 后复用相同收据且不再次交付/结算；上游 503 后恢复为 200，
+只结算一次，再次重试命中缓存；结算拒绝后重复凭证返回 402，不再次交付。
+`scenarios.events` 保留首次尝试轨迹，`retries.events` 为该场景累计轨迹，三项必须全部通过。
+这些保证仅对应本次显式启用防重放和内存缓存的配置，不覆盖所有部署、进程重启或多实例。
+结算拒绝或状态不确定时不应盲目重付；工具只测试确定性的模拟拒绝，不是自动重付客户端。
+
+### 可分享的验收摘要
+
+运行 `npm run acceptance:report` 输出 Markdown。保存纯报告时，先构建，再运行
+`bun dist/acceptance-report.js > acceptance-summary.md`，或加 `--json` 保存 JSON。
+安装包含本功能的包后，可执行 `node_modules/kite-x402-hono/dist/acceptance-report.js`。
+
+工具运行两套本地验收，18 项固定检查必须全部通过；缺项、重复、非布尔值或失败均不会算通过。
+版本 1 摘要只保留固定检查名、套件名和布尔结果，不复制地址、URL、签名、环境变量、响应原文或异常。
+CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
+
+摘要只是模拟断言的汇总，不是签名证明、真实密码学验签、链上结算或 npm 发布凭证，
+也不认证输入报告的真实性。重试检查仅针对显式启用内存 nonce guard 的配置。
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.

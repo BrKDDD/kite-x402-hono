@@ -128,7 +128,8 @@ export class ReadinessProbe {
     const results = await Promise.all(
       this.targets.map((t) => this.probeTarget(t)),
     );
-    const targetMap: Record<string, TargetHealth> = {};
+    // 目标名是数据键；__proto__ 等名称也必须进入 JSON，而不是触发原型 setter。
+    const targetMap: Record<string, TargetHealth> = Object.create(null);
     let allHealthy = true;
     let anyHealthy = false;
 

@@ -51,7 +51,8 @@ export function cleanHeaders(source: Headers, authHeader: string): Headers {
   return headers;
 }
 
-class BodyTooLarge extends Error {}
+// 内部错误类型让不同读取阶段识别同一种正文超限，避免把所有读取失败都计为超限。
+export class BodyTooLarge extends Error {}
 
 export async function readLimited(
   stream: ReadableStream<Uint8Array> | null,
