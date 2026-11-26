@@ -19,6 +19,11 @@ export interface ResponseSignerOptions {
   keyId?: string;
 }
 
+// JSON 会把非有限数编码为 null；签名和验证须共同约束状态，避免不同值共用 MAC。
+function isHttpStatusCode(status: number): boolean {
+  return Number.isInteger(status) && status >= 100 && status <= 599;
+}
+
 export class ResponseSigner {
   private secret: string;
   private keyId: string;
@@ -50,6 +55,8 @@ export class ResponseSigner {
     statusCode: number,
     responseBody: string,
   ): { receipt: ResponseReceipt; headerValue: string } {
+    if (!isHttpStatusCode(statusCode))
+      throw new Error("Invalid receipt HTTP status");
     if (
       ![paymentTxHash, requestId, this.keyId].every((v) =>
         /^[A-Za-z0-9_.:~-]{1,256}$/.test(v),
@@ -89,13 +96,14 @@ export class ResponseSigner {
     maxAgeMs: number = 300_000,
   ): boolean {
     if (
+      !isHttpStatusCode(receipt.statusCode) ||
       !Number.isFinite(maxAgeMs) ||
       maxAgeMs < 0 ||
       !Number.isSafeInteger(receipt.timestampMs) ||
       receipt.timestampMs > Date.now() ||
       Date.now() - receipt.timestampMs > maxAgeMs
     ) {
-      return false; // Stale receipt
+      return false; // 状态或时效不合法时，不能认证为有效回执。
     }
 
     const computedBodyHash = this.hashContent(responseBody);
