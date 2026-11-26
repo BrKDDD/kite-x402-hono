@@ -202,14 +202,6 @@ an exactly-once guarantee. Keep upstream idempotency and reconcile uncertain
 charges before retrying. This changes the earlier behavior that allowed a user
 key without the original payment credential to retrieve a cached result.
 
-Admission and completion no longer scan every cached key: a deadline-ordered expiry
-index reclaims lapsed records before capacity decisions, eviction reads a
-completion-ordered index, and cached body bytes are accounted incrementally
-(`bytes()` exposes the total). Expired entries stop consuming the byte budget at
-the next acquisition, and `cleanExpired()` remains available for an explicit full
-sweep. Memory stays bounded by the entry limit. See `docs/idempotency-hot-path.md`
-for the measurements and the eviction contract.
-
 ### Concurrency admission (added in 0.2.0)
 
 `MAX_CONCURRENT_REQUESTS` defaults to 64 and accepts integers from 1 to 10000.
