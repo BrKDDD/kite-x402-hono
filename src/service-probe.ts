@@ -118,17 +118,32 @@ export async function probeService(
   const checks = await Promise.all(
     paths.map(async (path): Promise<ServiceEndpointResult> => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      let expire!: () => void;
+      const deadline = new Promise<never>((_, reject) => {
+        expire = reject;
+      });
+      const timer = setTimeout(() => {
+        controller.abort();
+        expire();
+      }, timeoutMs);
       let response: Response | undefined;
       let code: ServiceProbeCode;
       try {
-        response = await fetchFn(new URL(path, url.origin).href, {
-          method: "GET",
-          redirect: "manual",
-          credentials: "omit",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
+        const pending = Promise.resolve(
+          fetchFn(new URL(path, url.origin).href, {
+            method: "GET",
+            redirect: "manual",
+            credentials: "omit",
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          }),
+        ).then((result) => {
+          // The report may already be complete when a custom fetch returns.
+          if (controller.signal.aborted)
+            void result.body?.cancel().catch(() => {});
+          return result;
         });
+        response = await Promise.race([pending, deadline]);
         if (response.status >= 300 && response.status < 400) code = "redirect";
         else if (
           response.status !== 200 &&

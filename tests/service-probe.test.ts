@@ -259,3 +259,41 @@ test("invalid network and deadlines fail before network IO", async () => {
     ).rejects.toThrow();
   expect(calls).toBe(0);
 });
+
+test("a fetch ignoring abort cannot hold the report or replace a timeout", async () => {
+  const lateResponse = Promise.withResolvers<Response>();
+  const lateFailure = Promise.withResolvers<Response>();
+  const report = await probeService({ ...options, timeoutMs: 10 }, (url) => {
+    switch (new URL(url).pathname) {
+      case "/readyz":
+        return lateResponse.promise;
+      case "/.well-known/x402":
+        return lateFailure.promise;
+      default:
+        return Promise.resolve(
+          Response.json({ ok: true, network: "eip155:2368", asset: "pieUSD" }),
+        );
+    }
+  });
+  const expected: typeof report.checks = [
+    { path: "/healthz", ok: true, code: "ok", status: 200 },
+    { path: "/readyz", ok: false, code: "timeout" },
+    { path: "/.well-known/x402", ok: false, code: "timeout" },
+  ];
+  expect(report.checks).toEqual(expected);
+
+  const cancelled = Promise.withResolvers<void>();
+  lateResponse.resolve(
+    new Response(
+      new ReadableStream({
+        cancel() {
+          cancelled.resolve();
+        },
+      }),
+    ),
+  );
+  lateFailure.reject(new Error("late fetch failure"));
+  await cancelled.promise;
+  await Bun.sleep(0);
+  expect(report.checks).toEqual(expected);
+}, 1000);
