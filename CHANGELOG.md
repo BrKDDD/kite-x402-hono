@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add fixed acceptance check reason codes and failure-only troubleshooting guidance, with a bilingual reproduction and sharing runbook.
+
 - Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.
 
 - Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.

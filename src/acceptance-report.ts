@@ -23,6 +23,12 @@ const names = {
   ],
   retries: ["cached_success", "upstream_recovery", "refused_nonce"],
 } as const;
+export type AcceptanceCheckReason =
+  | "passed"
+  | "missing"
+  | "duplicate"
+  | "invalid_result"
+  | "assertion_failed";
 export interface AcceptanceEvidence {
   schemaVersion: 1;
   scope: "local-simulation-only";
@@ -31,6 +37,7 @@ export interface AcceptanceEvidence {
     suite: "diagnostics" | "delivery" | "retries";
     name: string;
     ok: boolean;
+    reason: AcceptanceCheckReason;
   }[];
   suites: { diagnostics: boolean; delivery: boolean };
 }
@@ -50,7 +57,18 @@ export function summarizeAcceptance(
       const matching = Array.isArray(input)
         ? input.filter((item) => object(item) && item.name === name)
         : [];
+      const reason: AcceptanceCheckReason =
+        matching.length === 0
+          ? "missing"
+          : matching.length > 1
+            ? "duplicate"
+            : typeof matching[0].ok !== "boolean"
+              ? "invalid_result"
+              : matching[0].ok
+                ? "passed"
+                : "assertion_failed";
       return {
+        reason,
         suite,
         name,
         ok: matching.length === 1 && matching[0].ok === true,
@@ -102,12 +120,23 @@ export function formatAcceptanceEvidence(report: AcceptanceEvidence): string {
     `Diagnostics suite: ${report.suites.diagnostics ? "PASS" : "FAIL"}`,
     `Delivery suite: ${report.suites.delivery ? "PASS" : "FAIL"}`,
     "",
-    "| Suite | Check | Result |",
-    "| --- | --- | --- |",
+    "| Suite | Check | Result | Reason |",
+    "| --- | --- | --- | --- |",
     ...report.checks.map(
-      (c) => `| ${c.suite} | ${c.name} | ${c.ok ? "PASS" : "FAIL"} |`,
+      (c) =>
+        `| ${c.suite} | ${c.name} | ${c.ok ? "PASS" : "FAIL"} | ${c.reason} |`,
     ),
     "",
+    ...(!report.ok
+      ? [
+          "Troubleshooting: rerun the failed suite with acceptance:local or acceptance:delivery.",
+          "missing/duplicate/invalid_result: rebuild from a clean checkout and check runner/report compatibility.",
+          "assertion_failed: inspect the named scenario in the detailed suite report; do not retry real payments blindly.",
+          "If all checks pass but a suite fails, inspect its scope, overall result, cleanup and diagnostic payment-call counts.",
+          "See docs/acceptance-troubleshooting.md. Share sanitized reports, not environment files or credentials.",
+          "",
+        ]
+      : []),
     "This report summarizes local assertions; it is not signed proof or a registry release confirmation.",
     "",
   ].join("\n");
