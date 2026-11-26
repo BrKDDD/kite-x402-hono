@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { tryParseAtomicAmount } from "../amount.js";
 
 export interface CachedReceipt {
   receiptId: string;
@@ -65,12 +66,7 @@ export class ReceiptMemoryCache {
       !Number.isSafeInteger(ttlMs) ||
       ttlMs < 1 ||
       !Number.isFinite(now + ttlMs) ||
-      !["bigint", "number", "string"].includes(typeof data.amount) ||
-      (typeof data.amount === "number" && !Number.isSafeInteger(data.amount)) ||
-      (typeof data.amount === "string" &&
-        (!/^\d+$/.test(data.amount) || data.amount.length > 256)) ||
-      BigInt(data.amount) < 0n ||
-      BigInt(data.amount) >= 1n << 256n
+      tryParseAtomicAmount(data.amount) === null
     )
       throw new Error("Invalid receipt or TTL");
     const copy: CachedReceipt = {

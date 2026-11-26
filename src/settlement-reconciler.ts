@@ -4,6 +4,8 @@
  * payer addresses for post-payment audits, telemetry, and reconciliation.
  */
 
+import { tryParseAtomicAmount } from "./amount.js";
+
 export interface SettlementReceipt {
   txHash: string;
   payer: string;
@@ -13,6 +15,20 @@ export interface SettlementReceipt {
   timestamp: number;
   success: boolean;
   errorReason?: string;
+}
+
+/**
+ * A receipt that has been accepted by the reconciler.
+ *
+ * `amountAtomic` is the parsed form of `amount` for successful receipts, computed
+ * once on entry. It is always a non-negative integer below 2^256, which is what
+ * makes aggregation total: no recorded settlement can be skipped during summation.
+ * Failed receipts keep the previous permissive behaviour because their amount
+ * never enters the total; an unrepresentable amount is stored as 0n here while
+ * the original `amount` is retained verbatim.
+ */
+export interface StoredSettlementReceipt extends SettlementReceipt {
+  readonly amountAtomic: bigint;
 }
 
 export interface ReconcilerSummary {
@@ -29,8 +45,8 @@ export interface SettlementQuery {
 }
 
 export class SettlementReconciler {
-  private receiptsByTx: Map<string, SettlementReceipt> = new Map();
-  private receiptsByPayer: Map<string, SettlementReceipt[]> = new Map();
+  private receiptsByTx: Map<string, StoredSettlementReceipt> = new Map();
+  private receiptsByPayer: Map<string, StoredSettlementReceipt[]> = new Map();
   private orderedTxHashes: string[] = [];
   private readonly maxCapacity: number;
   private network: string | undefined;
@@ -54,10 +70,19 @@ export class SettlementReconciler {
     if (this.network !== undefined && receipt.network !== this.network)
       throw new Error("Settlement network does not match this reconciler");
 
+    // Reject an unrepresentable amount on a successful settlement before the
+    // duplicate check, and parse once here so aggregation never interprets it
+    // again. Failed settlements keep their previous permissive behaviour: their
+    // amount is telemetry only and never reaches the total.
+    const parsedAmount = tryParseAtomicAmount(receipt.amount);
+    if (receipt.success && parsedAmount === null)
+      throw new Error("Invalid settlement amount");
+    const amountAtomic = parsedAmount ?? 0n;
+
     const txKey = receipt.txHash.toLowerCase();
     const payerKey = receipt.payer.toLowerCase();
     if (this.receiptsByTx.has(txKey)) return;
-    receipt = { ...receipt };
+    const stored: StoredSettlementReceipt = { ...receipt, amountAtomic };
 
     // Capacity eviction (FIFO)
     if (this.orderedTxHashes.length >= this.maxCapacity) {
@@ -81,28 +106,28 @@ export class SettlementReconciler {
       }
     }
 
-    this.network ??= receipt.network;
-    this.receiptsByTx.set(txKey, receipt);
+    this.network ??= stored.network;
+    this.receiptsByTx.set(txKey, stored);
     this.orderedTxHashes.push(txKey);
 
     const payerList = this.receiptsByPayer.get(payerKey) ?? [];
-    payerList.push(receipt);
+    payerList.push(stored);
     this.receiptsByPayer.set(payerKey, payerList);
   }
 
-  getByTxHash(txHash: string): SettlementReceipt | undefined {
+  getByTxHash(txHash: string): StoredSettlementReceipt | undefined {
     const found = this.receiptsByTx.get(txHash.toLowerCase());
     return found ? { ...found } : undefined;
   }
 
-  getByPayer(payer: string): SettlementReceipt[] {
+  getByPayer(payer: string): StoredSettlementReceipt[] {
     return (this.receiptsByPayer.get(payer.toLowerCase()) ?? []).map((r) => ({
       ...r,
     }));
   }
 
-  query(filter: SettlementQuery = {}): SettlementReceipt[] {
-    let matches: SettlementReceipt[];
+  query(filter: SettlementQuery = {}): StoredSettlementReceipt[] {
+    let matches: StoredSettlementReceipt[];
 
     if (filter.payer) {
       matches = this.getByPayer(filter.payer);
@@ -129,11 +154,9 @@ export class SettlementReconciler {
     for (const receipt of this.receiptsByTx.values()) {
       if (receipt.success) {
         successful++;
-        try {
-          total += BigInt(receipt.amount);
-        } catch {
-          // ignore parsing error for non-standard amount
-        }
+        // Already parsed and range-checked on entry, so every successful
+        // settlement contributes: the total cannot be silently under-reported.
+        total += receipt.amountAtomic;
       } else {
         failed++;
       }
