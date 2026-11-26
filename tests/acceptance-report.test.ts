@@ -97,3 +97,19 @@ test("suite failure retains guidance even when individual checks pass", async ()
     "If all checks pass but a suite fails",
   );
 });
+
+test("the reason and verdict use the same observed check result", () => {
+  let reads = 0;
+  const check = {
+    name: "valid_configuration",
+    get ok() {
+      return ++reads > 1;
+    },
+  };
+  const report = summarizeAcceptance({ checks: [check] }, {});
+  expect(report.checks[0]).toMatchObject({
+    ok: false,
+    reason: "assertion_failed",
+  });
+  expect(reads).toBe(1);
+});

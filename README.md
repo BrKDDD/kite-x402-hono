@@ -514,7 +514,8 @@ package containing this feature also provides `node_modules/kite-x402-hono/dist/
 
 Both local suites run; all 18 known diagnostics/delivery/retry checks must pass.
 Missing, duplicate, nonboolean or failed checks fail the summary. Schema version 1
-projects only fixed check names, suite names and booleans; it omits raw responses,
+reports a fixed reason code and a boolean verdict from the same observed result
+for each named check. It omits raw responses,
 URLs, addresses, signatures, environment variables and exception details. CI archives
 the Markdown summary. Exit 0 means both suites passed; otherwise exit 1.
 

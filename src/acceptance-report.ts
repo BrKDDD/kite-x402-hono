@@ -57,21 +57,22 @@ export function summarizeAcceptance(
       const matching = Array.isArray(input)
         ? input.filter((item) => object(item) && item.name === name)
         : [];
+      const result = matching.length === 1 ? matching[0].ok : undefined;
       const reason: AcceptanceCheckReason =
         matching.length === 0
           ? "missing"
           : matching.length > 1
             ? "duplicate"
-            : typeof matching[0].ok !== "boolean"
+            : typeof result !== "boolean"
               ? "invalid_result"
-              : matching[0].ok
+              : result
                 ? "passed"
                 : "assertion_failed";
       return {
         reason,
         suite,
         name,
-        ok: matching.length === 1 && matching[0].ok === true,
+        ok: reason === "passed",
       };
     });
   const checks = [
