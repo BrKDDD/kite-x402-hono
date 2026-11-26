@@ -83,6 +83,34 @@ export class ResponseCacheStore {
     if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isFinite(now + ttlMs))
       throw new Error("Invalid cache TTL");
 
+    const etag = this.generateEtag(body);
+    const entry: CachedResponseEntry = {
+      body,
+      status,
+      headers: {
+        ...Object.fromEntries(
+          Object.entries(headers).filter(([k]) =>
+            ["content-type", "content-language"].includes(k.toLowerCase()),
+          ),
+        ),
+        ETag: etag,
+        "Cache-Control": "private, no-store",
+      },
+      etag,
+      createdAt: now,
+      expiresAt: now + ttlMs,
+    };
+
+    // Materialise both copies before touching any live state. Both can throw
+    // DataCloneError on input from an untyped caller, so neither may run after
+    // the cache, its FIFO order or the byte/expiry indexes are mutated: a
+    // failed write must leave all of them, and the previous paid response,
+    // untouched. Storing a clone rather than `entry` also severs references to
+    // caller-owned objects, so mutating them after a successful set() cannot
+    // poison a later get().
+    const stored = structuredClone(entry);
+    const snapshot = structuredClone(stored);
+
     // The staged write rebuilt a Map without the replaced key and without
     // expired entries. Detach lapsed heap nodes first so the byte budget can
     // be computed without a full scan, but keep every entry in the Map until
@@ -134,28 +162,10 @@ export class ResponseCacheStore {
     if (evictKey !== undefined) this.drop(evictKey);
     if (replaceExisting) this.drop(key);
 
-    const etag = this.generateEtag(body);
-    const entry: CachedResponseEntry = {
-      body,
-      status,
-      headers: {
-        ...Object.fromEntries(
-          Object.entries(headers).filter(([k]) =>
-            ["content-type", "content-language"].includes(k.toLowerCase()),
-          ),
-        ),
-        ETag: etag,
-        "Cache-Control": "private, no-store",
-      },
-      etag,
-      createdAt: now,
-      expiresAt: now + ttlMs,
-    };
-
-    this.cache.set(key, entry);
+    this.cache.set(key, stored);
     this.cachedBytes += bodyBytes;
-    this.pushExpiry(key, entry.expiresAt);
-    return structuredClone(entry);
+    this.pushExpiry(key, stored.expiresAt);
+    return snapshot;
   }
 
   public clear(): void {
