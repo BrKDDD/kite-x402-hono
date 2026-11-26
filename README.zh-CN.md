@@ -250,8 +250,6 @@ PR #52–#61 的审查结果与使用约定见 [11 月审查记录](docs/pr-revi
 
 `ReceiptMemoryCache` 提供毫秒 TTL 和 LRU 淘汰，读取及 has 查询都会更新访问顺序，输入输出均隔离复制。金额支持 uint256 范围的 bigint、十进制整数字符串或安全整数。它只保存调用者已经验证的回执，不提供支付验证、持久化防重放或自动跨链隔离；不同链和资产应使用独立实例或明确隔离的键。索引查询和对账可使用已有 ReceiptStore、SettlementReconciler。
 
-上述原子金额规则现在只由 `tryParseAtomicAmount` 定义，回执缓存与 `SettlementReconciler` 共用。成功回执的金额若无法表示为原子单位，`record()` 会直接抛错，而不是先收下再在汇总时静默跳过，因此 `totalSettledAmount` 始终覆盖所有计入 `successfulSettlements` 的结算。失败回执仍保留原始金额用于失败遥测；存储回执额外暴露解析后的 `amountAtomic`。详见 `docs/settlement-amount-integrity.md`。
-
 `corsAllowlistValidator({ allowedDomains, credentials: false })` 需要显式接入并替换其他 CORS 中间件。字符串匹配完整 HTTP(S) origin，正则必须匹配整个 origin；凭证需要显式开启。仅合法浏览器预检返回 204，拒绝的预检返回 403，普通 OPTIONS 继续进入支付处理。支持 Payment-Signature、Idempotency-Key 并暴露支付响应头。CORS 不提供身份认证。两项工具均不会由 createApp 自动启用。
 
 ### 离线配置预检
