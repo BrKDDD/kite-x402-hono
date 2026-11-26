@@ -353,6 +353,8 @@ The next release includes optional library components and security corrections d
 
 Review and integration contracts for PRs #52–#61: [November review](docs/pr-review-2026-11-06.md). New utilities require explicit integration.
 
+The optional `PrometheusMetricsExporter.incPaymentSettled` method requires a nonnegative `bigint` amount for both successful and failed settlements. Invalid amounts throw before any metric changes.
+
 ### Optional structured error handler
 
 ```ts
