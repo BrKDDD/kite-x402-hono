@@ -60,3 +60,40 @@ test("invalid inputs produce fixed failed evidence", () => {
     expect(r.checks).toHaveLength(18);
   }
 });
+
+test("failure reasons distinguish missing duplicate malformed and failed checks", async () => {
+  const [l, d] = await fixtures();
+  const cases = [
+    { checks: l.checks.slice(1), reason: "missing" },
+    { checks: [...l.checks, l.checks[0]], reason: "duplicate" },
+    {
+      checks: l.checks.map((c, i) => (i === 0 ? { ...c, ok: "SECRET" } : c)),
+      reason: "invalid_result",
+    },
+    {
+      checks: l.checks.map((c, i) => (i === 0 ? { ...c, ok: false } : c)),
+      reason: "assertion_failed",
+    },
+  ] as const;
+  for (const c of cases) {
+    const r = summarizeAcceptance({ ...l, checks: c.checks }, d);
+    expect(r.checks[0]?.reason).toBe(c.reason);
+    expect(formatAcceptanceEvidence(r)).toContain("Troubleshooting:");
+    expect(formatAcceptanceEvidence(r)).not.toContain("SECRET");
+  }
+  expect(
+    summarizeAcceptance(l, d).checks.every((c) => c.reason === "passed"),
+  ).toBe(true);
+  expect(formatAcceptanceEvidence(summarizeAcceptance(l, d))).not.toContain(
+    "Troubleshooting:",
+  );
+});
+test("suite failure retains guidance even when individual checks pass", async () => {
+  const [l, d] = await fixtures();
+  const r = summarizeAcceptance(l, { ...d, ok: false });
+  expect(r.checks.every((c) => c.ok)).toBe(true);
+  expect(r.ok).toBe(false);
+  expect(formatAcceptanceEvidence(r)).toContain(
+    "If all checks pass but a suite fails",
+  );
+});

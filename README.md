@@ -521,3 +521,5 @@ the Markdown summary. Exit 0 means both suites passed; otherwise exit 1.
 The summary is local simulation evidence, not signed proof, real cryptographic
 verification, chain settlement or npm publication. It does not authenticate supplied
 report objects. Retry checks apply to the explicit in-memory nonce guard configuration.
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
