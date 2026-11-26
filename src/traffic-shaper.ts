@@ -17,6 +17,7 @@ export interface TrafficShaperConfig {
   maxConcurrency: number;
   maxQueueDepth: number;
   defaultPriority?: number;
+  /** 排队超时毫秒；0 禁用，最大 2147483647，避免运行时溢出后改为 1 毫秒。 */
   queueTimeoutMs?: number;
 }
 
@@ -32,7 +33,8 @@ export class TrafficShaper {
       !Number.isSafeInteger(config.maxQueueDepth) ||
       config.maxQueueDepth < 0 ||
       !Number.isFinite(config.queueTimeoutMs ?? 30000) ||
-      (config.queueTimeoutMs ?? 30000) < 0
+      (config.queueTimeoutMs ?? 30000) < 0 ||
+      (config.queueTimeoutMs ?? 30000) > 2147483647
     )
       throw new Error("Invalid queue limits");
     this.config = {

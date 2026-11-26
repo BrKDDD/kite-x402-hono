@@ -2,7 +2,33 @@
 
 ## Unreleased
 
+- Add fixed acceptance check reason codes and failure-only troubleshooting guidance, with a bilingual reproduction and sharing runbook.
+
+- Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.
+
+- Extend simulated delivery acceptance with cached paid retries, upstream failure recovery and refused-nonce reuse checks under an explicit nonce guard; report per-scenario cumulative retry traces.
+
+- Add standalone simulated delivery acceptance for unpaid/rejected/successful requests, upstream failures and settlement refusal, with HTTP outcomes, ordered call traces and CI evidence.
+
+- Add repeatable local simulated acceptance combining configuration, service and unpaid challenge diagnostics, negative policy assertions, ephemeral server cleanup and CI JSON evidence.
+
+- Make challenge deadlines independent of injected fetch abort support; add caller cancellation with redacted `cancelled` reports, late-response cleanup and listener removal.
+
+- Add `checkPaymentChallenge()` and `--check-challenge` to inspect unpaid x402 v2 offers against an explicit Kite network, atomic amount and recipient policy, with bounded parsing and per-alternative diagnostics.
+
+- Add `--probe-service ORIGIN --network NETWORK [--json]` and `probeService()` for bounded, credential-free gateway health, readiness and Kite discovery checks. Distinguish configuration mismatches and readiness failures without performing payments.
+
 - Add offline `--check-config [--json]` diagnostics using startup validation, aggregated field errors, redacted output and deployment warnings. No server or payment calls are started.
+- Fix `PaymentNonceReplayGuard.commit()` dropping a settled nonce at the entry
+  cap: records that lapsed between acquisition and settlement could occupy the cap
+  and make a consumed nonce report `AVAILABLE` afterwards. Both `commit()` and
+  `acquire()` now reclaim expired records before acting on an entry count.
+- Bound the cost of nonce replay protection: expired records are swept at most
+  once per `sweepIntervalMs` (default 1000 ms) instead of on every acquisition.
+  Measured 113.7 µs → 0.5 µs per `reserve()` with 10,000 retained nonces. Replay
+  decisions are unchanged; `sweepIntervalMs: 0` preserves the previous behaviour
+  and `sweepCount` exposes the number of scheduled sweeps. See
+  docs/nonce-guard-sweep.md.
 
 ## 0.7.0
 

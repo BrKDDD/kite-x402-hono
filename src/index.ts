@@ -112,3 +112,20 @@ export {
   type ConfigPreflightReport,
   type ConfigDiagnostic,
 } from "./config-preflight.js";
+
+export {
+  probeService,
+  formatServiceProbe,
+  type ServiceProbeOptions,
+  type ServiceProbeReport,
+  type ServiceEndpointResult,
+  type ServiceProbeCode,
+} from "./service-probe.js";
+
+export {
+  checkPaymentChallenge,
+  formatPaymentChallenge,
+  type PaymentChallengeOptions,
+  type PaymentChallengeReport,
+  type PaymentChallengeCode,
+} from "./payment-challenge.js";

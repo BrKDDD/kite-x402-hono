@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import {
   checkConfig,
   formatConfigPreflight,
@@ -103,7 +105,8 @@ test("operational warnings do not turn valid configuration into an error", () =>
 });
 
 test("CLI exits without opening a port or contacting the facilitator", async () => {
-  const cli = new URL("../src/cli.ts", import.meta.url).pathname;
+  // 子进程需要系统路径；URL pathname 会保留空格编码和 Windows 盘符前缀。
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   // Keeping the requested port occupied proves preflight never starts Bun.serve.
   const server = Bun.serve({ port: 0, fetch: () => new Response("occupied") });
   let child: ReturnType<typeof Bun.spawn> | undefined;
@@ -111,7 +114,7 @@ test("CLI exits without opening a port or contacting the facilitator", async () 
     child = Bun.spawn(
       [process.execPath, "--no-env-file", cli, "--check-config", "--json"],
       {
-        cwd: "/tmp",
+        cwd: tmpdir(),
         env: {
           ...valid,
           PORT: String(server.port),
@@ -136,11 +139,12 @@ test("CLI exits without opening a port or contacting the facilitator", async () 
   }
 });
 test("CLI invalid configuration returns JSON and exit code 1", async () => {
-  const cli = new URL("../src/cli.ts", import.meta.url).pathname;
+  // 子进程需要系统路径；URL pathname 会保留空格编码和 Windows 盘符前缀。
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   const child = Bun.spawn(
     [process.execPath, "--no-env-file", cli, "--check-config", "--json"],
     {
-      cwd: "/tmp",
+      cwd: tmpdir(),
       env: { PAY_TO: "invalid", UPSTREAM_URL: "invalid" },
       stdout: "pipe",
       stderr: "pipe",

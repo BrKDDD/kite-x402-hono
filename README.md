@@ -176,6 +176,15 @@ Compatibility notes:
 
 Active nonce reservations remain held until their request finishes or settlement begins. The legacy `inFlightTtlMs` option is retained but does not evict active work. The middleware uses owner-bound reservations so an old request cannot release a replacement. Consumed retention remains process-local and time-limited; persistent or multi-process coordination belongs to the application.
 
+Reaching `maxEntries` reclaims lapsed records before the guard acts on the count,
+so a settled nonce is recorded rather than dropped, and a payment whose only
+obstacle is an unreclaimed slot is admitted. Expired records are swept at most once
+per `sweepIntervalMs` (default 1000; `0` restores a sweep per acquisition) instead
+of on every acquisition, so a payment does not pay for walking the whole map.
+Replay decisions are unaffected: `check` and `acquire` read the target entry's own
+expiry. See `docs/nonce-guard-sweep.md` for the measured cost and the eviction
+contract.
+
 ## Verification
 
 ### Idempotent paid retries
@@ -371,3 +380,146 @@ Before starting the gateway, run `bun src/cli.ts --check-config` from source (Bu
 The check reuses `loadConfig`, aggregates errors across required and optional validated settings, and outputs only field names, fixed guidance and the selected Kite network/asset/atomic price. It never prints credentials, raw URL values or parser exception messages. Unset optional fields retain startup defaults; existing permissive boolean/log settings retain their startup interpretation. Correct invalid fields and rerun to see the combined summary and deployment warnings. Library callers can import `checkConfig(env)` and `formatConfigPreflight(report)`.
 
 This is offline configuration validation only: it does not bind a server port, contact the upstream or facilitator, prove wallet ownership, or execute a payment. It does not detect misspelled/unknown environment keys. Reachability and real payment acceptance require separate checks.
+
+### Gateway service diagnostics
+
+After starting a gateway, run:
+
+```sh
+bun src/cli.ts --probe-service http://127.0.0.1:8080 --network testnet
+bun dist/cli.js --probe-service https://your-gateway.example --network mainnet --json
+```
+
+Use source or built commands until a package containing the feature is published. No PAY_TO or UPSTREAM_URL is required for this client mode. An explicit expected network is required (`mainnet`, `testnet`, chain ID or CAIP-2). It cannot be combined with `--check-config`. Exit 0 means all three diagnostics passed; exit 1 means a failed check or invalid arguments.
+
+Unlike generic `ReadinessProbe`, which checks transport status for arbitrary targets, this tool reads only `/healthz`, `/readyz` and `/.well-known/x402` on one operator-supplied gateway origin. It verifies HTTP 200 and response shape, expected Kite network, advertised token address/decimals and basic discovery payment fields. Readiness failures distinguish maintenance, facilitator unavailable and network not offered. Other outcomes include unreachable, timeout, redirect, HTTP error, invalid response and network/asset/protocol mismatch. The discovery schema is this wrapper's format, not a universal x402 schema.
+
+Requests are concurrent, unauthenticated GETs with redirects disabled, a 5-second per-endpoint deadline (including body) and 64 KiB response limit. A slow `/readyz` can time out even while the gateway's longer facilitator deadline is still running. Library callers can use `probeService({ origin, expectedNetwork, timeoutMs })` with a 1–300000 ms timeout, and `formatServiceProbe(report)`. Optional injected fetch implementations must honor abort signals. Reports omit raw bodies, URLs, server error messages and credentials. HTTP is allowed only for localhost development; production targets use HTTPS without paths, credentials, queries or fragments.
+
+This tool reports what the gateway advertises; it does not call `/v1/*`, verify wallet ownership, prove upstream readiness or perform settlement. It does not compare price/receiver against a merchant policy. Use only operator-controlled target input; do not expose arbitrary target URLs as a public web service. Health/readiness requests may appear in access logs and readiness can cause the gateway to query its facilitator.
+
+### Inspect an unpaid payment challenge
+
+Use an operator-controlled GET endpoint and an independently known payment policy:
+
+```sh
+bun src/cli.ts --check-challenge http://127.0.0.1:8080/v1/echo --network testnet --amount 1000000000000000 --pay-to 0x1234567890123456789012345678901234567890 --json
+```
+
+`--amount` is the **exact atomic token amount**, not a decimal price: 0.001 pieUSD
+on testnet is `1000000000000000`; 0.001 USDC.e on mainnet is `1000`. Replace the
+example address with your expected recipient. Do not copy expected values from
+an untrusted challenge. Exit status is 0 for a matching alternative, otherwise 1.
+
+The library exports `checkPaymentChallenge({ url, expectedNetwork, expectedAmount,
+expectedPayTo, timeoutMs?, signal? })` and `formatPaymentChallenge(report)`. It requires HTTP
+402 and the Base64 `PAYMENT-REQUIRED` header, x402 v2/exact, the pinned Kite token,
+an exact amount and recipient match, and a positive integer payment timeout.
+Each alternative has a diagnostic code; a match at any index passes. When none
+match, the top-level code is the first alternative's failure; inspect
+`alternatives` for all reasons. Unknown extensions/resource descriptions are not
+validated, and success is not proof that a wallet can sign or a facilitator can
+settle the offer.
+
+The checker makes one GET without credentials, payment signatures or redirects.
+HTTPS is required except localhost HTTP; the default request deadline is 5 seconds
+(configurable 1–300000 ms via the library). It bounds the encoded header to 64 KiB
+and alternatives to 100, cancels the unused body, and reports fixed codes without
+remote content or URLs. Keep target URLs free of secrets and use this as an
+operator tool, not a public arbitrary-URL endpoint. Only GET offers are inspected;
+no payment, upstream delivery or on-chain settlement is tested.
+
+Library callers can pass an `AbortSignal` to cancel a challenge check. An already
+aborted signal prevents the request; cancellation reports `cancelled`, whereas
+the deadline reports `timeout`. Abort reasons are never included in reports.
+The first interruption wins. Listeners and timers are removed when the check
+finishes. The deadline bounds waiting even if an injected fetch ignores abort;
+a late response is discarded and its body cancelled, and a late rejection is
+handled. An uncooperative implementation may continue its own background work;
+JavaScript that blocks the event loop cannot be interrupted by a timer.
+
+```ts
+const controller = new AbortController();
+const pending = checkPaymentChallenge({
+  url: "https://your-gateway.example/v1/echo",
+  expectedNetwork: "testnet",
+  expectedAmount: "1000000000000000",
+  expectedPayTo: "0x1234567890123456789012345678901234567890",
+  signal: controller.signal,
+});
+controller.abort(); // For example, when the operator closes the diagnostic view.
+const report = await pending; // code: "cancelled"
+```
+
+### Repeatable local acceptance
+
+Run `npm run acceptance:local` from the checkout (Bun required). For clean JSON,
+run `npm run build` once, then `bun dist/local-acceptance.js --json`. Exit status
+is 0 only when every acceptance assertion passes. After installing a package
+containing this feature, run `bun node_modules/kite-x402-hono/dist/local-acceptance.js --json`.
+
+The runner uses explicit synthetic testnet configuration, a loopback HTTP server
+on an automatically allocated port, and an injected simulated facilitator. It
+ignores merchant environment variables and needs no wallet, key, funds or remote
+service. It runs configuration preflight, health/readiness/discovery probes and
+an unpaid challenge check. Deliberate invalid configuration, network, amount and
+recipient cases must be rejected to pass. Any verification, upstream or settlement
+call fails acceptance. The server is stopped on success or failure, allowing repeat
+and concurrent runs. Raw execution errors are omitted from the report.
+
+Reports have scope `local-simulation-only`, named pass/fail checks and payment
+call counts. They demonstrate local diagnostic integration, **not real payments,
+upstream delivery, facilitator connectivity or on-chain settlement**. There is no
+remote-target option. CI saves `reports/local-acceptance.json` with its evidence
+artifacts and also runs the installed tarball's acceptance runner.
+
+### Simulated delivery acceptance
+
+Run `npm run acceptance:delivery`, or after building run
+`bun dist/delivery-acceptance.js --json`. Installed packages containing this
+feature support `bun node_modules/kite-x402-hono/dist/delivery-acceptance.js --json`.
+The runner covers unpaid access, rejected verification, successful delivery,
+upstream 503 and refused settlement over loopback HTTP. Each scenario uses a
+fresh gateway and verifies status plus exact verify → upstream → settle ordering
+where appropriate. Success checks protected content, no-store and a clearly
+synthetic receipt; failures must withhold protected content, and upstream failure
+must not settle. Servers close after each scenario, including failures.
+
+This separate runner leaves `acceptance:local`'s zero-payment-call contract intact.
+It uses a deliberately invalid signature fixture and injected facilitator/upstream
+stubs; it does **not** perform cryptographic verification, contact a remote service
+or send a transaction. `simulated-delivery-only` JSON contains statuses and simulated
+call traces, not wallet proofs or transaction evidence. No merchant environment or
+remote target is accepted. CI archives `reports/delivery-acceptance.json` and runs
+the installed package. Exit 0 means every scenario passed; otherwise exit 1.
+
+Delivery acceptance also enables an explicit in-memory `PaymentNonceReplayGuard`
+and sends a fixed idempotency key with the same synthetic credential on retries.
+Its `retries` report checks: successful 200 replay retains the receipt without
+another upstream/settlement call; an upstream 503 can recover to 200, settle once,
+then replay from cache; refused settlement returns 402 on credential reuse without
+another delivery attempt. Initial `scenarios.events` remain initial-attempt traces;
+`retries.events` are cumulative across that scenario's attempts. All three checks
+must pass. These guarantees apply to the tested opt-in nonce-guard configuration
+and in-memory cache lifetime, not all deployments, restarts or distributed workers.
+A refused/uncertain settlement must not trigger blind payment retries; this tool
+only exercises a deterministic simulated refusal and is not a retrying payment client.
+
+### Shareable acceptance summary
+
+Run `npm run acceptance:report` for a Markdown summary. For a clean file, build
+first, then run `bun dist/acceptance-report.js > acceptance-summary.md` or
+`bun dist/acceptance-report.js --json > acceptance-summary.json`. An installed
+package containing this feature also provides `node_modules/kite-x402-hono/dist/acceptance-report.js`.
+
+Both local suites run; all 18 known diagnostics/delivery/retry checks must pass.
+Missing, duplicate, nonboolean or failed checks fail the summary. Schema version 1
+projects only fixed check names, suite names and booleans; it omits raw responses,
+URLs, addresses, signatures, environment variables and exception details. CI archives
+the Markdown summary. Exit 0 means both suites passed; otherwise exit 1.
+
+The summary is local simulation evidence, not signed proof, real cryptographic
+verification, chain settlement or npm publication. It does not authenticate supplied
+report objects. Retry checks apply to the explicit in-memory nonce guard configuration.
+
+See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.

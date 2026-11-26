@@ -212,11 +212,17 @@ export class TokenBucketRateLimiter {
     if (!Number.isFinite(options.rps) || options.rps <= 0) {
       throw new Error("Rate limit RPS must be greater than zero");
     }
+    if (options.burst !== undefined && !Number.isFinite(options.burst))
+      throw new Error("Rate limit burst must be finite");
     this.rps = options.rps;
+    // 单次请求消耗一个 token；低速率的默认容量也必须能容纳一次请求。
     this.burst =
       options.burst && options.burst >= options.rps
         ? options.burst
-        : options.rps * 2;
+        : Math.max(1, options.rps * 2);
+    // 容量必须能逐枚扣减；非有限数或过大的浮点值会使配额无法耗尽。
+    if (!Number.isFinite(this.burst) || this.burst > Number.MAX_SAFE_INTEGER)
+      throw new Error("Rate limit burst exceeds safe token accounting range");
   }
 
   public getLimit(): number {
@@ -248,7 +254,8 @@ export class TokenBucketRateLimiter {
       const elapsedSec = elapsedMs / 1000;
       const tokensToAdd = elapsedSec * this.rps;
       state.tokens = Math.min(this.burst, state.tokens + tokensToAdd);
-      state.lastRefill = now;
+      // 时钟回拨不能回退补充起点，否则恢复到旧时间时会重复获得额度。
+      state.lastRefill = Math.max(state.lastRefill, now);
     }
 
     if (state.tokens >= 1) {
@@ -289,7 +296,7 @@ export class TokenBucketRateLimiter {
   }
 
   public reset(key?: string): void {
-    if (key) {
+    if (key !== undefined) {
       this.buckets.delete(key);
     } else {
       this.buckets.clear();

@@ -88,27 +88,28 @@ export function createAccessLogger(
 
     const start = performance.now();
     await next();
-    const durationMs = Math.round((performance.now() - start) * 100) / 100;
-
-    const rawContentLength = c.res.headers.get("content-length");
-    const contentLength =
-      rawContentLength && /^\d+$/.test(rawContentLength)
-        ? Number(rawContentLength)
-        : null;
-
-    const entry: AccessLogEntry = {
-      timestamp: new Date().toISOString(),
-      requestId: c.res.headers.get("x-request-id") ?? "unknown",
-      method: c.req.method,
-      path,
-      status: c.res.status,
-      durationMs,
-      clientIp: resolveClientIp(c),
-      contentLength,
-      userAgent: c.req.header("user-agent") ?? null,
-    };
-
+    // 诊断字段准备与输出属于同一失败边界；应用执行仍在此边界之外。
     try {
+      const durationMs = Math.round((performance.now() - start) * 100) / 100;
+
+      const rawContentLength = c.res.headers.get("content-length");
+      const contentLength =
+        rawContentLength && /^\d+$/.test(rawContentLength)
+          ? Number(rawContentLength)
+          : null;
+
+      const entry: AccessLogEntry = {
+        timestamp: new Date().toISOString(),
+        requestId: c.res.headers.get("x-request-id") ?? "unknown",
+        method: c.req.method,
+        path,
+        status: c.res.status,
+        durationMs,
+        clientIp: resolveClientIp(c),
+        contentLength,
+        userAgent: c.req.header("user-agent") ?? null,
+      };
+
       sink(formatLogEntry(entry, format));
     } catch {
       // Logging should never throw or disrupt response delivery
