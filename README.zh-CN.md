@@ -361,3 +361,5 @@ CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
 也不认证输入报告的真实性。重试检查仅针对显式启用内存 nonce guard 的配置。
 
 See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
+
+See [Diagnostics and acceptance handoff / 诊断与验收交接](docs/diagnostics-handoff.md) for reproduction, package verification and contribution provenance.
