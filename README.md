@@ -523,3 +523,5 @@ verification, chain settlement or npm publication. It does not authenticate supp
 report objects. Retry checks apply to the explicit in-memory nonce guard configuration.
 
 See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
+
+See [Diagnostics and acceptance handoff / 诊断与验收交接](docs/diagnostics-handoff.md) for reproduction, package verification and contribution provenance.
