@@ -24,6 +24,8 @@ export function corsAllowlistValidator(
     "content-type",
     "authorization",
     "payment-signature",
+    // 网关兼容旧版付款头，浏览器预检也须允许同一协议入口。
+    "x-payment",
     "idempotency-key",
     "x-request-id",
   ];
