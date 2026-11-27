@@ -32,11 +32,16 @@ export class AdaptiveRateLimiter {
   public readonly capacity: number;
   public readonly refillRatePerSec: number;
   private readonly cleanupIntervalMs: number;
-  private lastCleanupMs: number;
+  private lastCleanupMs: number | undefined;
 
   constructor(options: RateLimiterOptions) {
     if (options.capacity <= 0 || !Number.isFinite(options.capacity)) {
       throw new Error("Rate limiter capacity must be a positive finite number");
+    }
+    if (options.capacity > Number.MAX_SAFE_INTEGER) {
+      throw new Error(
+        "Rate limiter capacity exceeds safe token accounting range",
+      );
     }
     if (
       options.refillRatePerSec <= 0 ||
@@ -46,10 +51,16 @@ export class AdaptiveRateLimiter {
         "Rate limiter refillRatePerSec must be a positive finite number",
       );
     }
+    const cleanupIntervalMs = options.cleanupIntervalMs ?? 300_000; // 5 min
+    if (!Number.isFinite(cleanupIntervalMs) || cleanupIntervalMs <= 0) {
+      throw new Error(
+        "Rate limiter cleanupIntervalMs must be a positive finite number",
+      );
+    }
     this.capacity = options.capacity;
     this.refillRatePerSec = options.refillRatePerSec;
-    this.cleanupIntervalMs = options.cleanupIntervalMs ?? 300_000; // 5 min
-    this.lastCleanupMs = 0;
+    this.cleanupIntervalMs = cleanupIntervalMs;
+    this.lastCleanupMs = undefined;
   }
 
   /**
@@ -62,6 +73,8 @@ export class AdaptiveRateLimiter {
   ): RateLimitStatus {
     if (!Number.isFinite(tokensToConsume) || tokensToConsume <= 0)
       throw new Error("Invalid token count");
+    if (!Number.isFinite(nowMs))
+      throw new Error("Invalid rate limiter timestamp");
     this.maybeCleanup(nowMs);
 
     let bucket = this.buckets.get(key);
@@ -87,7 +100,7 @@ export class AdaptiveRateLimiter {
         bucket.tokens = Math.min(this.capacity, bucket.tokens + refilled);
         bucket.lastRefillMs = nowMs;
       }
-      bucket.lastAccessMs = nowMs;
+      bucket.lastAccessMs = Math.max(bucket.lastAccessMs, nowMs);
     }
 
     if (bucket.tokens >= tokensToConsume) {
@@ -124,6 +137,10 @@ export class AdaptiveRateLimiter {
    * Purges idle buckets only when their tokens have fully replenished.
    */
   private maybeCleanup(nowMs: number): void {
+    if (this.lastCleanupMs === undefined) {
+      this.lastCleanupMs = nowMs;
+      return;
+    }
     if (nowMs - this.lastCleanupMs < this.cleanupIntervalMs) return;
     this.lastCleanupMs = nowMs;
     const staleThreshold = nowMs - this.cleanupIntervalMs;
@@ -156,6 +173,12 @@ export class AdaptiveRateLimiter {
 export function createRateLimiterMiddleware(
   options: RateLimiterOptions,
 ): MiddlewareHandler {
+  if (
+    options.keyExtractor !== undefined &&
+    typeof options.keyExtractor !== "function"
+  ) {
+    throw new Error("Rate limiter keyExtractor must be a function");
+  }
   const limiter = new AdaptiveRateLimiter(options);
   const keyExtractor = options.keyExtractor ?? (() => "global");
 
@@ -182,6 +205,10 @@ export function createRateLimiterMiddleware(
     }
 
     await next();
+    c.res.headers.set("Cache-Control", "no-store");
+    c.res.headers.set("X-RateLimit-Limit", status.limit.toString());
+    c.res.headers.set("X-RateLimit-Remaining", status.remaining.toString());
+    c.res.headers.set("X-RateLimit-Reset", status.resetInSec.toString());
   };
 }
 
