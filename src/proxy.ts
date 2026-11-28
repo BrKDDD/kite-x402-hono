@@ -66,8 +66,12 @@ export async function readLimited(
   const cancel = () => {
     if (cancelled) return;
     cancelled = true;
-    // Cleanup belongs to the stream producer and must not block a failure response.
-    void reader.cancel().catch(() => {});
+    // Cleanup belongs to the stream producer and must not replace the read diagnostic.
+    try {
+      void reader.cancel().catch(() => {});
+    } catch {
+      /* best effort */
+    }
   };
   signal?.addEventListener("abort", cancel, { once: true });
   const chunks: Uint8Array[] = [];

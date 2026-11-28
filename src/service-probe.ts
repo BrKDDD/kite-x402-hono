@@ -38,6 +38,15 @@ const paths = ["/healthz", "/readyz", "/.well-known/x402"] as const;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function discard(response: Response | undefined): void {
+  // Cleanup must never replace an endpoint diagnostic, even for a custom fetch response.
+  // Read the body getter inside the guard so a hostile Response cannot escape either.
+  try {
+    void response?.body?.cancel().catch(() => {});
+  } catch {
+    /* best effort */
+  }
+}
 function validate(
   path: string,
   body: unknown,
@@ -157,7 +166,7 @@ export async function probeService(
       } finally {
         clearTimeout(timer);
         // Do not wait for a remote producer's cancellation to complete.
-        void response?.body?.cancel().catch(() => {});
+        discard(response);
       }
       return {
         path,
