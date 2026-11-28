@@ -95,33 +95,43 @@ export class ResponseSigner {
     responseBody: string,
     maxAgeMs: number = 300_000,
   ): boolean {
+    // getter 可能逐次变化；时效、内容和 MAC 必须基于同一份回执快照。
+    const snapshot: ResponseReceipt = {
+      paymentTxHash: receipt.paymentTxHash,
+      requestId: receipt.requestId,
+      timestampMs: receipt.timestampMs,
+      statusCode: receipt.statusCode,
+      bodyHash: receipt.bodyHash,
+      signature: receipt.signature,
+    };
+    const now = Date.now();
     if (
-      !isHttpStatusCode(receipt.statusCode) ||
+      !isHttpStatusCode(snapshot.statusCode) ||
       !Number.isFinite(maxAgeMs) ||
       maxAgeMs < 0 ||
-      !Number.isSafeInteger(receipt.timestampMs) ||
-      receipt.timestampMs > Date.now() ||
-      Date.now() - receipt.timestampMs > maxAgeMs
+      !Number.isSafeInteger(snapshot.timestampMs) ||
+      snapshot.timestampMs > now ||
+      now - snapshot.timestampMs > maxAgeMs
     ) {
       return false; // 状态或时效不合法时，不能认证为有效回执。
     }
 
     const computedBodyHash = this.hashContent(responseBody);
-    if (computedBodyHash !== receipt.bodyHash) {
+    if (computedBodyHash !== snapshot.bodyHash) {
       return false; // Body mismatch
     }
 
     const expected = this.mac(
-      receipt.paymentTxHash,
-      receipt.requestId,
-      receipt.statusCode,
+      snapshot.paymentTxHash,
+      snapshot.requestId,
+      snapshot.statusCode,
       computedBodyHash,
-      receipt.timestampMs,
+      snapshot.timestampMs,
     );
-    if (!/^hmac_[a-f0-9]{64}$/.test(receipt.signature)) return false;
+    if (!/^hmac_[a-f0-9]{64}$/.test(snapshot.signature)) return false;
     return timingSafeEqual(
       Buffer.from(expected),
-      Buffer.from(receipt.signature),
+      Buffer.from(snapshot.signature),
     );
   }
   private mac(
