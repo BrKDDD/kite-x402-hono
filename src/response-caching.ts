@@ -106,9 +106,11 @@ export class ResponseCacheStore {
       expiresAt: now + ttlMs,
     };
 
+    // 返回快照也可能失败；完成全部可失败操作后才能发布替换并淘汰旧响应。
+    const snapshot = structuredClone(entry);
     next.set(key, entry);
     this.cache = next;
-    return structuredClone(entry);
+    return snapshot;
   }
 
   public clear(): void {
