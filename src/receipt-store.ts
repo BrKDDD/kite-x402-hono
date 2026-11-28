@@ -43,6 +43,8 @@ export class ReceiptStore {
     this.cleanup();
     const key = receipt.txHash.toLowerCase();
     this.remove(key);
+    // 保留同交易覆盖语义，但已过期的回执不能占用容量、挤掉其他有效记录。
+    if (Date.now() - receipt.timestampMs >= this.retentionMs) return;
     const saved = {
       ...receipt,
       txHash: key,
