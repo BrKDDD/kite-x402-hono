@@ -100,3 +100,65 @@ test("incomplete challenge policy is rejected before loading dependencies", asyn
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout).error).toContain("Supply --check-challenge");
 });
+
+test.each(["--check-confgi", "--unknown", "unexpected-positional"])(
+  "unsupported argument %s cannot fall through to server startup",
+  async (argument) => {
+    const result = await run([argument]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Unsupported CLI argument");
+    expect(result.stderr).not.toContain("server module must remain unloaded");
+  },
+);
+
+test("offline JSON diagnostics cannot silently ignore an unsupported option", async () => {
+  const result = await run(["--check-config", "--unexpected", "--json"]);
+  expect(result.code).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    ok: false,
+    error: "Unsupported CLI argument. Use --help for supported options.",
+  });
+  expect(result.stderr).toBe("");
+});
+
+test.each(["--probe-service", "--check-challenge"])(
+  "%s refuses unsupported arguments before making diagnostic HTTP requests",
+  async (mode) => {
+    let calls = 0;
+    // 仅监听回环地址并记录未付款诊断请求，不启动付费服务或接触外部网络。
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => {
+        calls++;
+        return Response.json({});
+      },
+    });
+    try {
+      const result = await run([
+        mode,
+        server.url.origin,
+        "--network",
+        "testnet",
+        ...(mode === "--check-challenge"
+          ? [
+              "--amount",
+              "1000",
+              "--pay-to",
+              "0x1234567890123456789012345678901234567890",
+            ]
+          : []),
+        "--unexpected",
+        "--json",
+      ]);
+      expect(result.code).toBe(1);
+      expect(calls).toBe(0);
+      expect(JSON.parse(result.stdout).error).toContain(
+        "Unsupported CLI argument",
+      );
+    } finally {
+      server.stop(true);
+    }
+  },
+);
