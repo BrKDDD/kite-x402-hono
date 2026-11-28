@@ -2,6 +2,10 @@ import { resolveNetwork } from "./networks.js";
 
 export interface PaymentChallengeOptions {
   url: string;
+  /** Defaults to GET. POST must be selected explicitly. */
+  method?: "GET" | "POST";
+  /** Serialized JSON text for POST only, at most 16 KiB of UTF-8. */
+  jsonBody?: string;
   expectedNetwork: string;
   /** Exact positive atomic token amount, not a decimal USD price. */
   expectedAmount: string;
@@ -42,7 +46,7 @@ const address = (v: unknown): v is string =>
   /^0x[\da-fA-F]{40}$/.test(v) &&
   !/^0x0{40}$/i.test(v);
 
-/** Inspect an operator-supplied paid GET endpoint without signing or paying.
+/** Inspect an operator-supplied paid GET or POST endpoint without signing or paying.
  * Do not expose this operator tool as an arbitrary-URL public endpoint.
  */
 export async function checkPaymentChallenge(
@@ -78,6 +82,24 @@ export async function checkPaymentChallenge(
   const timeoutMs = options.timeoutMs ?? 5000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000)
     throw new Error("Challenge timeout must be 1–300000 milliseconds.");
+  const method = options.method === undefined ? "GET" : options.method;
+  const jsonBody = options.jsonBody;
+  if (method !== "GET" && method !== "POST")
+    throw new Error("Challenge method must be GET or POST.");
+  if (jsonBody !== undefined) {
+    if (method !== "POST") throw new Error("JSON body requires explicit POST.");
+    if (
+      typeof jsonBody !== "string" ||
+      jsonBody.length > 16384 ||
+      Buffer.byteLength(jsonBody, "utf8") > 16384
+    )
+      throw new Error("JSON body must be text of at most 16384 UTF-8 bytes.");
+    try {
+      JSON.parse(jsonBody);
+    } catch {
+      throw new Error("JSON body must contain valid JSON.");
+    }
+  }
   // Snapshot policy before awaiting remote input.
   const expectedAmount = options.expectedAmount;
   const expectedPayTo = options.expectedPayTo.toLowerCase();
@@ -123,10 +145,16 @@ export async function checkPaymentChallenge(
     if (stopped) return report(stopped);
     const pending = Promise.resolve(
       fetchFn(url.href, {
-        method: "GET",
+        method,
         credentials: "omit",
         redirect: "manual",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          ...(jsonBody !== undefined
+            ? { "Content-Type": "application/json" }
+            : {}),
+        },
+        ...(jsonBody !== undefined ? { body: jsonBody } : {}),
         signal: controller.signal,
       }),
     ).then((value) => {
