@@ -29,13 +29,12 @@ export class ResponseSigner {
   private keyId: string;
 
   constructor(options: ResponseSignerOptions) {
-    if (
-      !options.signingSecret ||
-      Buffer.byteLength(options.signingSecret) < 32
-    ) {
+    // 校验和安装同一个密钥值，避免有状态 getter 在校验后替换为短密钥。
+    const signingSecret = options.signingSecret;
+    if (!signingSecret || Buffer.byteLength(signingSecret) < 32) {
       throw new Error("signingSecret must be at least 32 bytes");
     }
-    this.secret = options.signingSecret;
+    this.secret = signingSecret;
     this.keyId = options.keyId ?? "kite-receipt-k1";
   }
 
