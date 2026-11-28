@@ -33,6 +33,8 @@ const blocked = new Set([
 
 export function cleanHeaders(source: Headers, authHeader: string): Headers {
   const headers = new Headers(source);
+  // Headers 的键已转小写；配置名称也须按 HTTP 大小写无关规则比较，避免透传调用方认证值。
+  const normalizedAuthHeader = authHeader.toLowerCase();
   const connectionTokens = (headers.get("connection") ?? "")
     .split(",")
     .map((token) => token.trim().toLowerCase());
@@ -41,7 +43,7 @@ export function cleanHeaders(source: Headers, authHeader: string): Headers {
       blocked.has(key) ||
       (key === "x-request-id" &&
         !REQUEST_ID_PATTERN.test(headers.get(key) ?? "")) ||
-      key === authHeader ||
+      key === normalizedAuthHeader ||
       connectionTokens.includes(key) ||
       key.startsWith("x402-") ||
       key.startsWith("access-control-")
