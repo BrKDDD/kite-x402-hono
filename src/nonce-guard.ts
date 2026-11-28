@@ -75,6 +75,12 @@ export class PaymentNonceReplayGuard {
     return this.sweepRuns;
   }
 
+  private assertFiniteTime(now: number): void {
+    // 非法时钟不能把永不到期的在途锁误判为过期，或写入无法比较的期限。
+    if (!Number.isFinite(now))
+      throw new Error("Nonce guard time must be finite");
+  }
+
   private buildKey(payer: string, nonce: string): string {
     return `${payer.trim().toLowerCase()}:${nonce.trim().toLowerCase()}`;
   }
@@ -88,6 +94,7 @@ export class PaymentNonceReplayGuard {
     nonce: string,
     now: number = Date.now(),
   ): boolean {
+    this.assertFiniteTime(now);
     this.sweepIfDue(now);
     const key = this.buildKey(payer, nonce);
     const existing = this.entries.get(key);
@@ -130,6 +137,7 @@ export class PaymentNonceReplayGuard {
     return {
       commit: (at = Date.now()) => {
         if (this.entries.get(key) !== entry) return;
+        this.assertFiniteTime(at);
         entry.status = "CONSUMED";
         entry.expiresAt = at + this.consumedTtlMs;
       },
@@ -144,6 +152,7 @@ export class PaymentNonceReplayGuard {
    * Retains the nonce for consumedTtlMs when settlement begins or succeeds.
    */
   public commit(payer: string, nonce: string, now: number = Date.now()): void {
+    this.assertFiniteTime(now);
     const key = this.buildKey(payer, nonce);
     if (!this.entries.has(key) && this.entries.size >= this.maxEntries) {
       // Dropping a consumed nonce would report it AVAILABLE on a later lookup,
@@ -176,6 +185,7 @@ export class PaymentNonceReplayGuard {
     nonce: string,
     now: number = Date.now(),
   ): NonceStatus {
+    this.assertFiniteTime(now);
     const key = this.buildKey(payer, nonce);
     const existing = this.entries.get(key);
     if (!existing || existing.expiresAt <= now) {
@@ -188,6 +198,7 @@ export class PaymentNonceReplayGuard {
    * Returns current count of active tracked nonces.
    */
   public size(now: number = Date.now()): number {
+    this.assertFiniteTime(now);
     this.cleanExpired(now);
     return this.entries.size;
   }
