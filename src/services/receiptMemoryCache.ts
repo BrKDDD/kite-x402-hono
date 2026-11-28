@@ -27,31 +27,32 @@ export class ReceiptMemoryCache {
     ttlMs = this.defaultTtlMs,
   ): void {
     const now = Date.now();
-    if (
-      !receiptId ||
-      receiptId.length > 512 ||
-      data.receiptId !== receiptId ||
-      !data.payer ||
-      data.payer.length > 512 ||
-      !Number.isSafeInteger(data.timestamp) ||
-      data.timestamp < 0 ||
-      !Number.isSafeInteger(ttlMs) ||
-      ttlMs < 1 ||
-      !Number.isSafeInteger(now + ttlMs) ||
-      !["bigint", "number", "string"].includes(typeof data.amount) ||
-      (typeof data.amount === "number" && !Number.isSafeInteger(data.amount)) ||
-      (typeof data.amount === "string" &&
-        (!/^\d+$/.test(data.amount) || data.amount.length > 256)) ||
-      BigInt(data.amount) < 0n ||
-      BigInt(data.amount) >= 1n << 256n
-    )
-      throw new Error("Invalid receipt or TTL");
+    // 只读取受支持字段一次；校验和缓存保存必须使用同一份调用方快照。
     const copy: CachedReceipt = {
-      receiptId,
+      receiptId: data.receiptId,
       payer: data.payer,
       amount: data.amount,
       timestamp: data.timestamp,
     };
+    if (
+      !receiptId ||
+      receiptId.length > 512 ||
+      copy.receiptId !== receiptId ||
+      !copy.payer ||
+      copy.payer.length > 512 ||
+      !Number.isSafeInteger(copy.timestamp) ||
+      copy.timestamp < 0 ||
+      !Number.isSafeInteger(ttlMs) ||
+      ttlMs < 1 ||
+      !Number.isSafeInteger(now + ttlMs) ||
+      !["bigint", "number", "string"].includes(typeof copy.amount) ||
+      (typeof copy.amount === "number" && !Number.isSafeInteger(copy.amount)) ||
+      (typeof copy.amount === "string" &&
+        (!/^\d+$/.test(copy.amount) || copy.amount.length > 256)) ||
+      BigInt(copy.amount) < 0n ||
+      BigInt(copy.amount) >= 1n << 256n
+    )
+      throw new Error("Invalid receipt or TTL");
     for (const [key, entry] of this.cache)
       if (entry.expiresAt <= now) this.cache.delete(key);
     this.cache.delete(receiptId);
