@@ -85,7 +85,8 @@ export async function readLimited(
       if (size > limit) {
         throw new BodyTooLarge();
       }
-      chunks.push(value);
+      // 生产者可能复用缓冲区；消费时复制字节，且不能使用 Buffer.slice 的共享视图。
+      chunks.push(new Uint8Array(value));
     }
   } finally {
     signal?.removeEventListener("abort", cancel);
