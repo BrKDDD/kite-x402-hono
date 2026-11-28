@@ -28,22 +28,16 @@ test("receipt LRU, replacement and copies preserve independent entries", () => {
   expect(() => new ReceiptMemoryCache(0)).toThrow();
 });
 test("expired receipts are reclaimed at the exact boundary", () => {
-  const original = Date.now;
   let now = 1000;
-  Date.now = () => now;
-  try {
-    const cache = new ReceiptMemoryCache(10, 2);
-    cache.set("live", receipt("live"), 100);
-    cache.set("old", receipt("old"));
-    now += 10;
-    cache.set("new", receipt("new"));
-    expect(cache.has("old")).toBe(false);
-    expect(cache.has("live")).toBe(true);
-    now += 10;
-    expect(cache.get("new")).toBeNull();
-  } finally {
-    Date.now = original;
-  }
+  const cache = new ReceiptMemoryCache(10, 2, () => now);
+  cache.set("live", receipt("live"), 100);
+  cache.set("old", receipt("old"));
+  now += 10;
+  cache.set("new", receipt("new"));
+  expect(cache.has("old")).toBe(false);
+  expect(cache.has("live")).toBe(true);
+  now += 10;
+  expect(cache.get("new")).toBeNull();
 });
 function appFixture() {
   const app = new Hono();
