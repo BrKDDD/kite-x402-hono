@@ -40,6 +40,8 @@ export function createApp(
   config: Config = loadConfig(),
   options: AppOptions = {},
 ): Hono {
+  // SDK 报价在此时安装；后续发现信息与转发也须使用同一份配置，避免调用方修改造成漂移。
+  config = { ...config, chain: { ...config.chain } };
   const app = new Hono();
   const getClientIp = options.clientIp ?? clientIpResolver(config);
 
