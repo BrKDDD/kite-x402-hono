@@ -8,6 +8,7 @@ export class SlidingWindowLimiter {
   private windows = new Map<string, number[]>();
   private readonly windowSizeMs: number;
   private readonly maxRequests: number;
+  private lastCleanupAt = Number.NEGATIVE_INFINITY;
 
   constructor(windowSizeMs = 60000, maxRequests = 120) {
     if (
@@ -21,11 +22,22 @@ export class SlidingWindowLimiter {
     this.maxRequests = maxRequests;
   }
 
-  public check(key: string): RateLimitResult {
-    const now = Date.now();
+  private cleanup(now: number, force = false): boolean {
+    if (!force && now - this.lastCleanupAt < 1000) return false;
+    this.lastCleanupAt = now;
     const cutoff = now - this.windowSizeMs;
     for (const [id, times] of this.windows)
       if ((times.at(-1) ?? 0) <= cutoff) this.windows.delete(id);
+    return true;
+  }
+
+  public check(key: string): RateLimitResult {
+    const now = Date.now();
+    const cutoff = now - this.windowSizeMs;
+    const swept = this.cleanup(now);
+    // 容量压力下必须即时回收，不能因清理节流而拒绝本可接纳的新客户端。
+    if (!swept && !this.windows.has(key) && this.windows.size >= 10000)
+      this.cleanup(now, true);
     if (!this.windows.has(key) && this.windows.size >= 10000)
       return {
         allowed: false,
