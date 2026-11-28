@@ -26,7 +26,7 @@ export class PaymentAuthCache {
     const entry = this.cache.get(paymentKey);
     if (!entry) return null;
 
-    if (Date.now() > entry.expiresAt) {
+    if (Date.now() >= entry.expiresAt) {
       this.cache.delete(paymentKey);
       return null;
     }
@@ -36,14 +36,19 @@ export class PaymentAuthCache {
   }
 
   public set(paymentKey: string, payerAddress: string, scheme = "x402"): void {
+    const now = Date.now();
     this.cache.delete(paymentKey);
+    // 仅在容量压力下扫描过期项，不能让已过期的 LRU 尾部挤掉有效授权。
+    if (this.cache.size >= this.maxEntries) {
+      for (const [key, entry] of this.cache)
+        if (entry.expiresAt <= now) this.cache.delete(key);
+    }
     if (this.cache.size >= this.maxEntries) {
       const oldestKey = this.cache.keys().next().value;
       // 空字符串也是有效缓存键，只有 undefined 表示迭代器中没有可淘汰项。
       if (oldestKey !== undefined) this.cache.delete(oldestKey);
     }
 
-    const now = Date.now();
     this.cache.set(paymentKey, {
       payerAddress,
       scheme,
