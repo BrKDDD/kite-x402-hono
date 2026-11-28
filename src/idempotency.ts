@@ -29,6 +29,22 @@ export interface IdempotencyCacheOptions {
   maxBytes?: number;
 }
 
+function assertClock(now: number): void {
+  if (!Number.isSafeInteger(now) || now < 0)
+    throw new Error("Invalid idempotency clock");
+}
+
+function assertLifetime(ttlMs: number, now: number): void {
+  assertClock(now);
+  // 调用级覆盖也须满足构造器的期限约束，不能发布 NaN 或无法表示的到期时间。
+  if (
+    !Number.isSafeInteger(ttlMs) ||
+    ttlMs < 1 ||
+    !Number.isSafeInteger(now + ttlMs)
+  )
+    throw new Error("Invalid idempotency TTL");
+}
+
 export class IdempotencyCache {
   private records = new Map<string, IdempotencyRecord>();
   private defaultTtlMs: number;
@@ -50,6 +66,7 @@ export class IdempotencyCache {
   }
 
   public cleanExpired(now = Date.now()): void {
+    assertClock(now);
     for (const [key, record] of this.records.entries()) {
       const expiresAt =
         record.state === "in_flight"
@@ -72,6 +89,7 @@ export class IdempotencyCache {
     | { status: "conflict" }
     | { status: "in_flight" }
     | { status: "cached"; response: CachedResponse } {
+    assertLifetime(ttlMs, now);
     this.cleanExpired(now);
 
     const existing = this.records.get(key);
@@ -114,6 +132,7 @@ export class IdempotencyCache {
   ): void {
     const record = this.records.get(key);
     if (!record) return;
+    assertLifetime(ttlMs, now);
     const used = [...this.records.entries()].reduce(
       (n, [k, r]) =>
         n +
