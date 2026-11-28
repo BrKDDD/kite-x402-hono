@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extend the challenge checker library with explicit POST and optional validated JSON text (16 KiB UTF-8), preserving GET defaults and redacted reports.
+
 - Add fixed acceptance check reason codes and failure-only troubleshooting guidance, with a bilingual reproduction and sharing runbook.
 
 - Add shareable Markdown/JSON acceptance summaries with a versioned allowlist projection, strict complete-check aggregation and CI artifacts.

@@ -412,7 +412,7 @@ example address with your expected recipient. Do not copy expected values from
 an untrusted challenge. Exit status is 0 for a matching alternative, otherwise 1.
 
 The library exports `checkPaymentChallenge({ url, expectedNetwork, expectedAmount,
-expectedPayTo, timeoutMs?, signal? })` and `formatPaymentChallenge(report)`. It requires HTTP
+expectedPayTo, timeoutMs?, signal?, method?, jsonBody? })` and `formatPaymentChallenge(report)`. It requires HTTP
 402 and the Base64 `PAYMENT-REQUIRED` header, x402 v2/exact, the pinned Kite token,
 an exact amount and recipient match, and a positive integer payment timeout.
 Each alternative has a diagnostic code; a match at any index passes. When none
@@ -421,12 +421,12 @@ match, the top-level code is the first alternative's failure; inspect
 validated, and success is not proof that a wallet can sign or a facilitator can
 settle the offer.
 
-The checker makes one GET without credentials, payment signatures or redirects.
+By default the checker makes one GET without credentials, payment signatures or redirects.
 HTTPS is required except localhost HTTP; the default request deadline is 5 seconds
 (configurable 1–300000 ms via the library). It bounds the encoded header to 64 KiB
 and alternatives to 100, cancels the unused body, and reports fixed codes without
 remote content or URLs. Keep target URLs free of secrets and use this as an
-operator tool, not a public arbitrary-URL endpoint. Only GET offers are inspected;
+operator tool, not a public arbitrary-URL endpoint. The CLI currently inspects GET offers;
 no payment, upstream delivery or on-chain settlement is tested.
 
 Library callers can pass an `AbortSignal` to cancel a challenge check. An already
@@ -525,3 +525,27 @@ report objects. Retry checks apply to the explicit in-memory nonce guard configu
 See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
 
 See [Diagnostics and acceptance handoff / 诊断与验收交接](docs/diagnostics-handoff.md) for reproduction, package verification and contribution provenance.
+
+### Inspect a POST offer (library)
+
+```ts
+import { checkPaymentChallenge } from "kite-x402-hono";
+const report = await checkPaymentChallenge({
+  url: "https://your-gateway.example/v1/generate",
+  expectedNetwork: "testnet",
+  expectedAmount: "1000000000000000",
+  expectedPayTo: "0x1234567890123456789012345678901234567890",
+  method: "POST",
+  jsonBody: JSON.stringify({ prompt: "Example input" }),
+});
+```
+
+`method` defaults to `GET` and accepts only `GET` or `POST`. `jsonBody` is optional
+serialized JSON text, limited to 16,384 UTF-8 bytes (including whitespace and quotes).
+Any valid JSON value is accepted; invalid JSON, oversized text and a GET body are
+rejected before sending. Bodyless POST is allowed. A supplied body is sent unchanged
+with `Content-Type: application/json`; no automatic redirects or retries occur.
+Reports and fixed validation errors do not include the body. Never put credentials
+in the JSON payload. POST performs an actual request and may cause side effects on
+an incorrectly protected target even without payment: use operator-controlled
+endpoints. This does not sign or pay. CLI POST/file input is not implemented yet.

@@ -296,10 +296,10 @@ timeoutMs?, signal? })` 和 `formatPaymentChallenge(report)`。检查 HTTP 402�
 `code` 是首个选项的失败原因，全部结果见 `alternatives`。不验证扩展字段和资源描述，
 通过不代表钱包能签名或 facilitator 能完成结算。
 
-只发起一次不带凭证或支付签名的 GET，不跟随重定向。除本机 HTTP 外要求 HTTPS；
+默认只发起一次不带凭证或支付签名的 GET，不跟随重定向。除本机 HTTP 外要求 HTTPS；
 默认请求超时 5 秒，库参数允许 1–300000 毫秒。编码后头部上限 64 KiB、选项上限 100，
 无需读取响应体，报告不回显远端原文或 URL。目标 URL 不应包含秘密。此工具用于运维，
-不要包装成对公众开放的任意 URL 探测服务。仅检查 GET 报价，不进行付款、上游交付或链上结算。
+不要包装成对公众开放的任意 URL 探测服务。CLI 目前仅检查 GET 报价，不进行付款、上游交付或链上结算。
 
 库调用可传入 `signal: controller.signal`（`AbortController` 的信号）取消检查。
 已取消的信号不会发送请求；调用方取消返回 `cancelled`，截止时间到达返回 `timeout`，
@@ -363,3 +363,15 @@ CI 归档 Markdown 摘要；成功退出 0，失败退出 1。
 See [Acceptance troubleshooting / 验收排查](docs/acceptance-troubleshooting.md) for failure reason codes and reproduction commands.
 
 See [Diagnostics and acceptance handoff / 诊断与验收交接](docs/diagnostics-handoff.md) for reproduction, package verification and contribution provenance.
+
+### POST 报价检查（库接口）
+
+调用 `checkPaymentChallenge` 时可传入 `method: "POST"` 和
+`jsonBody: JSON.stringify({ prompt: "示例输入" })`；其余预期网络、金额和地址参数照常提供。
+默认方法仍是 GET，只接受 GET/POST。jsonBody 是可选的已序列化 JSON 文本，最大 16,384 UTF-8
+字节（含空白和引号），支持任意合法 JSON 值。非法 JSON、超长正文或 GET 携带正文均在发送前拒绝。
+支持无正文 POST；有正文时保持原文并设置 application/json。不跟随重定向、不自动重试，
+报告及固定校验错误不回显正文。不要把凭证放进 JSON。
+
+POST 会真实发送请求；目标若未正确保护，未付款也可能产生副作用，因此仅用于操作者控制的接口。
+本工具不签名、不付款。CLI 的 POST/文件输入尚未实现。
